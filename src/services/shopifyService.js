@@ -5,11 +5,18 @@ class ShopifyService {
   constructor() {
     this.storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
     this.storefrontAccessToken = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN;
-    this.storefrontApiUrl = `https://${this.storeDomain}/api/2025-07/graphql.json`;
-
+    this.adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
     
-    if (!this.storeDomain || !this.storefrontAccessToken) {
-      console.warn('⚠️ Shopify configuration missing. Please set SHOPIFY_STORE_DOMAIN and SHOPIFY_STOREFRONT_ACCESS_TOKEN in environment variables.');
+    // API URLs
+    this.storefrontApiUrl = `https://${this.storeDomain}/api/2024-10/graphql.json`;
+    this.adminApiUrl = `https://${this.storeDomain}/admin/api/2024-10/graphql.json`;
+    this.adminRestApiUrl = `https://${this.storeDomain}/admin/api/2024-10`;
+
+    if (!this.storeDomain) {
+      console.warn('⚠️ SHOPIFY_STORE_DOMAIN is missing in environment variables.');
+    }
+    if (!this.storefrontAccessToken && !this.adminAccessToken) {
+      console.warn('⚠️ Either SHOPIFY_STOREFRONT_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN is required.');
     }
   }
 
@@ -20,31 +27,27 @@ class ShopifyService {
    */
   async checkCustomerExists(phoneNumber) {
     try {
-      if (!this.storeDomain || !this.storefrontAccessToken) {
+      if (!this.storeDomain) {
         return {
           exists: false,
           customer: null,
-          error: 'Shopify configuration not found'
+          error: 'Shopify store domain not configured'
         };
       }
 
-      // NOTE: Shopify Storefront API has limitations
-      // The 'customers' field is not available in Storefront API for security reasons
-      // This is only available in the Admin API
-      
-      console.warn('⚠️ Storefront API limitation: Customer lookup by phone not supported');
-      console.warn('⚠️ For production, consider using Admin API or local customer database');
-      
-      // For now, we'll assume customer doesn't exist and they need to sign up
-      // In a real implementation, you would:
-      // 1. Use Admin API with proper permissions
-      // 2. Store customer data in your own database
-      // 3. Use email-based customer authentication instead
+      // Try Admin API first if available
+      if (this.adminAccessToken) {
+        return await this.checkCustomerWithAdminAPI(phoneNumber);
+      }
+
+      // Fallback: Assume customer doesn't exist
+      console.warn('⚠️ Admin API access token not configured');
+      console.warn('⚠️ Cannot verify customer existence - assuming new customer');
       
       return {
         exists: false,
         customer: null,
-        error: 'Customer lookup not supported in Storefront API - assuming new customer'
+        error: 'Admin API not configured - assuming new customer'
       };
 
     } catch (error) {
@@ -59,134 +62,108 @@ class ShopifyService {
   }
 
   /**
+   * Check customer using Admin API (preferred method)
+   * @param {string} phoneNumber - Customer's phone number
+   * @returns {object} - Customer existence result
+   */
+  async checkCustomerWithAdminAPI(phoneNumber) {
+    try {
+      // Use REST API to search customers by phone
+      // GraphQL Admin API also works but REST is simpler for this use case
+      const searchUrl = `${this.adminRestApiUrl}/customers.json?phone=${encodeURIComponent(phoneNumber)}&limit=1`;
+      
+      const response = await axios.get(searchUrl, {
+        headers: {
+          'X-Shopify-Access-Token': this.adminAccessToken,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      if (response.data && response.data.customers && response.data.customers.length > 0) {
+        const customer = response.data.customers[0];
+        return {
+          exists: true,
+          customer: {
+            id: `gid://shopify/Customer/${customer.id}`,
+            email: customer.email,
+            phone: customer.phone,
+            firstName: customer.first_name,
+            lastName: customer.last_name,
+            acceptsMarketing: customer.accepts_marketing,
+            createdAt: customer.created_at,
+            updatedAt: customer.updated_at
+          },
+          error: null
+        };
+      }
+
+      return {
+        exists: false,
+        customer: null,
+        error: null
+      };
+
+    } catch (error) {
+      console.error('Admin API customer check failed:', error.message);
+      
+      if (error.response?.status === 401) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Invalid Admin API access token'
+        };
+      }
+      
+      if (error.response?.status === 402) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Shopify store payment required'
+        };
+      }
+      
+      return {
+        exists: false,
+        customer: null,
+        error: 'Admin API request failed'
+      };
+    }
+  }
+
+  /**
    * Creates a new customer in Shopify
    * @param {object} customerData - Customer information
    * @returns {object} - Customer creation result
    */
   async createCustomer(customerData) {
     try {
-      if (!this.storeDomain || !this.storefrontAccessToken) {
+      if (!this.storeDomain) {
         return {
           success: false,
           customer: null,
-          error: 'Shopify configuration not found'
+          error: 'Shopify store domain not configured'
         };
       }
 
-      const { phoneNumber, name, email, password, gender, birthdate, acceptsMarketing } = customerData;
-
-      // Split name into first and last name
-      const nameParts = name.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-
-      const mutation = `
-        mutation customerCreate($input: CustomerCreateInput!) {
-          customerCreate(input: $input) {
-            customer {
-              id
-              email
-              phone
-              firstName
-              lastName
-              acceptsMarketing
-              createdAt
-            }
-            customerUserErrors {
-              field
-              message
-              code
-            }
-          }
-        }
-      `;
-
-      const variables = {
-        input: {
-          email: email,
-          phone: phoneNumber,
-          firstName: firstName,
-          lastName: lastName,
-          password: password,
-          acceptsMarketing: acceptsMarketing || false,
-          ...(birthdate && { metafields: [
-            {
-              namespace: 'custom',
-              key: 'birthdate',
-              value: birthdate,
-              type: 'date'
-            }
-          ]}),
-          ...(gender && { metafields: [
-            {
-              namespace: 'custom',
-              key: 'gender',
-              value: gender,
-              type: 'single_line_text_field'
-            }
-          ]})
-        }
-      };
-
-      const response = await axios.post(
-        this.storefrontApiUrl,
-        {
-          query: mutation,
-          variables: variables
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Storefront-Access-Token': this.storefrontAccessToken
-          },
-          timeout: 15000
-        }
-      );
-
-      if (response.data.errors) {
-        console.error('Shopify GraphQL errors:', response.data.errors);
-        return {
-          success: false,
-          customer: null,
-          error: 'GraphQL errors occurred'
-        };
+      // Try Admin API first if available
+      if (this.adminAccessToken) {
+        return await this.createCustomerWithAdminAPI(customerData);
       }
 
-      const result = response.data.data.customerCreate;
-      
-      if (result.customerUserErrors && result.customerUserErrors.length > 0) {
-        const errors = result.customerUserErrors.map(err => err.message).join(', ');
-        return {
-          success: false,
-          customer: null,
-          error: errors
-        };
-      }
-
-      if (result.customer) {
-        return {
-          success: true,
-          customer: result.customer,
-          error: null
-        };
+      // Try Storefront API as fallback (limited functionality)
+      if (this.storefrontAccessToken) {
+        return await this.createCustomerWithStorefrontAPI(customerData);
       }
 
       return {
         success: false,
         customer: null,
-        error: 'Failed to create customer for unknown reason'
+        error: 'No Shopify API access tokens configured'
       };
 
     } catch (error) {
       console.error('Error creating customer:', error.message);
-      
-      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-        return {
-          success: false,
-          customer: null,
-          error: 'Unable to connect to Shopify'
-        };
-      }
       
       return {
         success: false,
@@ -194,6 +171,142 @@ class ShopifyService {
         error: 'Error occurred while creating customer'
       };
     }
+  }
+
+  /**
+   * Create customer using Admin API (preferred method)
+   * @param {object} customerData - Customer information
+   * @returns {object} - Customer creation result
+   */
+  async createCustomerWithAdminAPI(customerData) {
+    try {
+      const { phoneNumber, name, email, password, gender, birthdate, acceptsMarketing } = customerData;
+
+      // Split name into first and last name
+      const nameParts = name.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+      // Prepare customer data for Admin API
+      const customerPayload = {
+        customer: {
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+          phone: phoneNumber,
+          password: password,
+          password_confirmation: password,
+          accepts_marketing: acceptsMarketing || false,
+          send_email_welcome: false, // Don't send welcome email
+          verified_email: true
+        }
+      };
+
+      // Add metafields for additional data
+      if (gender || birthdate) {
+        customerPayload.customer.metafields = [];
+        
+        if (gender) {
+          customerPayload.customer.metafields.push({
+            namespace: 'custom',
+            key: 'gender',
+            value: gender,
+            type: 'single_line_text_field'
+          });
+        }
+        
+        if (birthdate) {
+          customerPayload.customer.metafields.push({
+            namespace: 'custom',
+            key: 'birthdate',
+            value: birthdate,
+            type: 'date'
+          });
+        }
+      }
+
+      const response = await axios.post(
+        `${this.adminRestApiUrl}/customers.json`,
+        customerPayload,
+        {
+          headers: {
+            'X-Shopify-Access-Token': this.adminAccessToken,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000
+        }
+      );
+
+      if (response.data && response.data.customer) {
+        const customer = response.data.customer;
+        return {
+          success: true,
+          customer: {
+            id: `gid://shopify/Customer/${customer.id}`,
+            email: customer.email,
+            phone: customer.phone,
+            firstName: customer.first_name,
+            lastName: customer.last_name,
+            acceptsMarketing: customer.accepts_marketing,
+            createdAt: customer.created_at
+          },
+          error: null
+        };
+      }
+
+      return {
+        success: false,
+        customer: null,
+        error: 'Failed to create customer'
+      };
+
+    } catch (error) {
+      console.error('Admin API customer creation failed:', error.message);
+      
+      if (error.response?.status === 401) {
+        return {
+          success: false,
+          customer: null,
+          error: 'Invalid Admin API access token'
+        };
+      }
+      
+      if (error.response?.status === 422) {
+        const errors = error.response.data?.errors || {};
+        const errorMessages = Object.entries(errors)
+          .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+          .join('; ');
+        
+        return {
+          success: false,
+          customer: null,
+          error: errorMessages || 'Validation errors occurred'
+        };
+      }
+      
+      return {
+        success: false,
+        customer: null,
+        error: 'Admin API request failed'
+      };
+    }
+  }
+
+  /**
+   * Create customer using Storefront API (fallback method with limitations)
+   * @param {object} customerData - Customer information
+   * @returns {object} - Customer creation result
+   */
+  async createCustomerWithStorefrontAPI(customerData) {
+    // Storefront API customer creation is very limited
+    // It doesn't support phone numbers or custom fields
+    console.warn('⚠️ Using Storefront API for customer creation - limited functionality');
+    
+    return {
+      success: false,
+      customer: null,
+      error: 'Storefront API does not support full customer creation - use Admin API'
+    };
   }
 
   /**
@@ -283,8 +396,8 @@ class ShopifyService {
       missingConfigs.push('SHOPIFY_STORE_DOMAIN');
     }
     
-    if (!this.storefrontAccessToken) {
-      missingConfigs.push('SHOPIFY_STOREFRONT_ACCESS_TOKEN');
+    if (!this.adminAccessToken && !this.storefrontAccessToken) {
+      missingConfigs.push('SHOPIFY_ADMIN_ACCESS_TOKEN or SHOPIFY_STOREFRONT_ACCESS_TOKEN');
     }
     
     return {
@@ -302,19 +415,99 @@ class ShopifyService {
    */
   async testConnection() {
     try {
-      const validation = this.validateConfiguration();
-      if (!validation.isValid) {
+      if (!this.storeDomain) {
         return {
           success: false,
-          message: validation.message
+          message: 'Shopify store domain not configured'
         };
       }
 
+      // Test Admin API first if available
+      if (this.adminAccessToken) {
+        return await this.testAdminAPIConnection();
+      }
+
+      // Test Storefront API as fallback
+      if (this.storefrontAccessToken) {
+        return await this.testStorefrontAPIConnection();
+      }
+
+      return {
+        success: false,
+        message: 'No Shopify API access tokens configured'
+      };
+
+    } catch (error) {
+      console.error('Shopify connection test failed:', error.message);
+      return {
+        success: false,
+        message: 'Failed to connect to Shopify'
+      };
+    }
+  }
+
+  /**
+   * Test Admin API connection
+   * @returns {object} - Connection test result
+   */
+  async testAdminAPIConnection() {
+    try {
+      const response = await axios.get(
+        `${this.adminRestApiUrl}/shop.json`,
+        {
+          headers: {
+            'X-Shopify-Access-Token': this.adminAccessToken,
+            'Content-Type': 'application/json'
+          },
+          timeout: 5000
+        }
+      );
+
+      if (response.data && response.data.shop) {
+        return {
+          success: true,
+          message: 'Admin API connection successful',
+          api: 'Admin API',
+          shop: {
+            name: response.data.shop.name,
+            domain: response.data.shop.domain
+          }
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Invalid Admin API response'
+      };
+
+    } catch (error) {
+      if (error.response?.status === 401) {
+        return {
+          success: false,
+          message: 'Invalid Admin API access token'
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Admin API connection failed'
+      };
+    }
+  }
+
+  /**
+   * Test Storefront API connection
+   * @returns {object} - Connection test result
+   */
+  async testStorefrontAPIConnection() {
+    try {
       const query = `
         query {
           shop {
             name
-            domain
+            primaryDomain {
+              host
+            }
           }
         }
       `;
@@ -334,21 +527,21 @@ class ShopifyService {
       if (response.data.errors) {
         return {
           success: false,
-          message: 'Invalid credentials or access token'
+          message: 'Invalid Storefront API credentials or access token'
         };
       }
 
       return {
         success: true,
-        message: 'Connection to Shopify successful',
+        message: 'Storefront API connection successful',
+        api: 'Storefront API',
         shop: response.data.data.shop
       };
 
     } catch (error) {
-      console.error('Shopify connection test failed:', error.message);
       return {
         success: false,
-        message: 'Failed to connect to Shopify'
+        message: 'Storefront API connection failed'
       };
     }
   }
