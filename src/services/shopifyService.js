@@ -71,6 +71,8 @@ class ShopifyService {
       // Use REST API to search customers by phone
       // GraphQL Admin API also works but REST is simpler for this use case
       const searchUrl = `${this.adminRestApiUrl}/customers.json?phone=${encodeURIComponent(phoneNumber)}&limit=1`;
+
+      console.log('searchUrl', searchUrl);
       
       const response = await axios.get(searchUrl, {
         headers: {

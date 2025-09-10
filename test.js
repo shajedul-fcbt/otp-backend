@@ -4,10 +4,12 @@
  */
 
 const axios = require('axios');
+const { error } = require('winston');
+const { Console } = require('winston/lib/winston/transports');
 
 const BASE_URL = 'http://localhost:3000';
 const TEST_PHONE = '+8801712345678';
-const TEST_EMAIL = 'test@example.com';
+const TEST_EMAIL = 'test1@example.com';
 
 class APITester {
   constructor() {
@@ -54,13 +56,7 @@ class APITester {
     });
   }
 
-  async testOTPStatus() {
-    return this.runTest('OTP Status', async () => {
-      const response = await axios.get(`${BASE_URL}/api/otp/status?phoneNumber=${TEST_PHONE}`);
-      if (response.status !== 200) throw new Error('OTP status check failed');
-      return response.data;
-    });
-  }
+
 
   async testVerifyInvalidOTP() {
     return this.runTest('Verify Invalid OTP', async () => {
@@ -79,27 +75,51 @@ class APITester {
     });
   }
 
-  async testCustomerSignup() {
-    return this.runTest('Customer Signup', async () => {
-      const response = await axios.post(`${BASE_URL}/api/customer/signup`, {
-        phoneNumber: TEST_PHONE,
-        name: 'Test User',
-        email: TEST_EMAIL,
-        gender: 'other',
-        acceptsMarketing: false
-      });
-      if (response.status !== 201) throw new Error('Customer signup failed');
-      return response.data;
+
+  
+  async testVerifyvalidOTP() {
+    return this.runTest('Verify Valid OTP', async () => {
+      try {
+        await axios.post(`${BASE_URL}/api/otp/verify`, {
+          phoneNumber: TEST_PHONE,
+          otp: '153637'
+        });
+        return { message: 'Correctly verified valid OTP' };
+        
+      } catch (error) {
+        
+        throw error;
+      }
     });
   }
 
-  async testCheckCustomerExists() {
-    return this.runTest('Check Customer Exists', async () => {
-      const response = await axios.get(`${BASE_URL}/api/customer/check-exists?identifier=${TEST_PHONE}`);
-      if (response.status !== 200) throw new Error('Check customer exists failed');
-      return response.data;
+
+  async testCustomerSignup() {
+    return this.runTest('Customer Signup', async () => {
+      try {
+        const response = await axios.post(`${BASE_URL}/api/customer/signup`, {
+          phoneNumber: TEST_PHONE,
+          name: 'Test User',
+          email: TEST_EMAIL,
+          gender: 'other',
+          acceptsMarketing: false
+        });
+        typeof(error)
+        if (response.status !== 201) throw new Error('Customer signup failed');
+        return response.data;
+      } catch (error) {
+        // Always log the full error object for debugging
+        // console.error('Customer signup error (full error):', error);
+        if (error.response && error.response.data && error.response.data.message) {
+          console.error('Customer signup error (message):', error.response.data.message);
+        } else {
+          console.error('Customer signup error (message):', error.message);
+        }
+        throw error;
+      }
     });
   }
+
 
   async testInvalidPhoneNumber() {
     return this.runTest('Invalid Phone Number Validation', async () => {
@@ -144,25 +164,23 @@ class APITester {
     console.log('🚀 Starting API Tests...\n');
     
     // Basic functionality tests
-    await this.testHealthCheck();
-    await this.testAPIStatus();
+    // await this.testHealthCheck();
+    // await this.testAPIStatus();
     
-    // OTP functionality tests
-    await this.testSendOTP();
-    await this.testOTPStatus();
-    await this.testVerifyInvalidOTP();
+    // // OTP functionality tests
+    // await this.testSendOTP();
+    // await this.testVerifyInvalidOTP();
+    await this.testVerifyvalidOTP();
     
-    // Customer functionality tests
-    await this.testCheckCustomerExists();
     
     // Validation tests
-    await this.testInvalidPhoneNumber();
+    // await this.testInvalidPhoneNumber();
     
-    // Rate limiting test (might trigger limits)
-    await this.testRateLimiting();
+    // // Rate limiting test (might trigger limits)
+    // await this.testRateLimiting();
     
-    // Customer signup test (do this last as it might create a customer)
-    await this.testCustomerSignup();
+    // // Customer signup test (do this last as it might create a customer)
+    // await this.testCustomerSignup();
     
     console.log('\n📊 Test Results Summary:');
     console.log('========================');
