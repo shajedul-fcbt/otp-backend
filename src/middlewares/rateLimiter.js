@@ -5,14 +5,14 @@ require('dotenv').config();
  * Rate limiting middleware configuration
  */
 
-// General API rate limit
+// General API rate limit (relaxed for testing)
 const generalLimiter = rateLimit({
-  windowMs: (parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES) || 15) * 60 * 1000, // 15 minutes default
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // 100 requests per windowMs
+  windowMs: 1000, // 1 second
+  max: 500, // 500 requests per second for testing
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.',
-    retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES) || 15) * 60)
+    retryAfter: 1
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -20,27 +20,27 @@ const generalLimiter = rateLimit({
     res.status(429).json({
       success: false,
       message: 'Too many requests from this IP, please try again later.',
-      retryAfter: Math.ceil((parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES) || 15) * 60)
+      retryAfter: 1
     });
   }
 });
 
-// Strict rate limit for OTP sending (to prevent spam)
+// Relaxed rate limit for OTP sending (for testing)
 const otpSendLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 3, // 3 OTP requests per 5 minutes per IP
+  windowMs: 1000, // 1 second
+  max: 500, // 500 OTP requests per second for testing
   message: {
     success: false,
-    message: 'Too many OTP requests. Please wait 5 minutes before requesting another OTP.',
-    retryAfter: 5 * 60
+    message: 'Too many OTP requests. Please wait a moment before requesting another OTP.',
+    retryAfter: 1
   },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many OTP requests. Please wait 5 minutes before requesting another OTP.',
-      retryAfter: 5 * 60
+      message: 'Too many OTP requests. Please wait a moment before requesting another OTP.',
+      retryAfter: 1
     });
   },
   keyGenerator: (req) => {
@@ -49,22 +49,22 @@ const otpSendLimiter = rateLimit({
   }
 });
 
-// Rate limit for OTP verification (to prevent brute force)
+// Relaxed rate limit for OTP verification (for testing)
 const otpVerifyLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 5, // 5 verification attempts per 5 minutes per phone number
+  windowMs: 1000, // 1 second
+  max: 500, // 500 verification attempts per second for testing
   message: {
     success: false,
-    message: 'Too many verification attempts. Please wait 5 minutes before trying again.',
-    retryAfter: 5 * 60
+    message: 'Too many verification attempts. Please wait a moment before trying again.',
+    retryAfter: 1
   },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many verification attempts. Please wait 5 minutes before trying again.',
-      retryAfter: 5 * 60
+      message: 'Too many verification attempts. Please wait a moment before trying again.',
+      retryAfter: 1
     });
   },
   keyGenerator: (req) => {
@@ -73,34 +73,34 @@ const otpVerifyLimiter = rateLimit({
   }
 });
 
-// Rate limit for customer signup
+// Relaxed rate limit for customer signup (for testing)
 const signupLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 2, // 2 signup attempts per 10 minutes per IP
+  windowMs: 1000, // 1 second
+  max: 500, // 500 signup attempts per second for testing
   message: {
     success: false,
-    message: 'Too many signup attempts. Please wait 10 minutes before trying again.',
-    retryAfter: 10 * 60
+    message: 'Too many signup attempts. Please wait a moment before trying again.',
+    retryAfter: 1
   },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many signup attempts. Please wait 10 minutes before trying again.',
-      retryAfter: 10 * 60
+      message: 'Too many signup attempts. Please wait a moment before trying again.',
+      retryAfter: 1
     });
   }
 });
 
-// Rate limit for Swagger documentation (lighter limit)
+// Relaxed rate limit for Swagger documentation (for testing)
 const swaggerLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute for docs
+  windowMs: 1000, // 1 second
+  max: 500, // 500 requests per second for testing
   message: {
     success: false,
     message: 'Too many requests to documentation. Please wait a moment.',
-    retryAfter: 60
+    retryAfter: 1
   },
   standardHeaders: true,
   legacyHeaders: false
@@ -147,11 +147,11 @@ const createPhoneNumberLimiter = (windowMs, max, message) => {
   };
 };
 
-// Phone number specific OTP limiter (1 OTP per minute per phone number)
+// Phone number specific OTP limiter (relaxed for testing)
 const phoneOtpLimiter = createPhoneNumberLimiter(
-  60 * 1000, // 1 minute
-  1, // 1 request per minute per phone number
-  'You can only request one OTP per minute for this phone number.'
+  1000, // 1 second
+  500, // 500 requests per second per phone number for testing
+  'Too many requests for this phone number. Please wait a moment.'
 );
 
 module.exports = {

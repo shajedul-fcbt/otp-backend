@@ -127,8 +127,22 @@ router.post('/send',
  *             schema:
  *               $ref: '#/components/schemas/VerifyOTPResponse'
  *             examples:
- *               success:
- *                 summary: Successful verification
+ *               success_with_customer:
+ *                 summary: Successful verification with customer data
+ *                 value:
+ *                   success: true
+ *                   message: "OTP verified successfully"
+ *                   data:
+ *                     phoneNumber: "+8801712345678"
+ *                     verified: true
+ *                     expired: false
+ *                     customer:
+ *                       email: "john.doe@example.com"
+ *                       password: "Xy9$mK2#nP8Q"
+ *                       name: "John Doe"
+ *                       customerId: "gid://shopify/Customer/123456789"
+ *               success_without_customer:
+ *                 summary: Successful verification without customer data
  *                 value:
  *                   success: true
  *                   message: "OTP verified successfully"

@@ -129,14 +129,33 @@ class OTPController {
       console.log(`✅ OTP verified successfully for phone: ${phoneNumber}`);
       await redisClient.delete(redisKey);
       
+      // Get customer data from Redis if exists
+      console.log(`🔍 Retrieving customer data for phone: ${phoneNumber}`);
+      const customerDataKey = otpGenerator.generateCustomerDataKey(phoneNumber);
+      const customerData = await redisClient.get(customerDataKey);
+      
+      // Prepare response data
+      const responseData = {
+        phoneNumber: phoneNumber,
+        verified: true,
+        expired: false
+      };
+      
+      // If customer data exists, include email and plain password
+      if (customerData) {
+        console.log(`📧 Customer data found, including credentials in response`);
+        responseData.customer = {
+          email: customerData.email,
+          password: customerData.plainPassword,
+          name: customerData.name,
+          customerId: customerData.customerId
+        };
+      }
+      
       res.status(200).json({
         success: true,
         message: 'OTP verified successfully',
-        data: {
-          phoneNumber: phoneNumber,
-          verified: true,
-          expired: false
-        }
+        data: responseData
       });
 
     } catch (error) {
@@ -154,78 +173,6 @@ class OTPController {
       res.status(500).json({
         success: false,
         message: 'Internal server error occurred while verifying OTP',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
-  /**
-   * Check OTP status (optional endpoint for checking remaining time)
-   * @param {object} req - Express request object
-   * @param {object} res - Express response object
-   */
-  async checkOTPStatus(req, res) {
-    try {
-      const { phoneNumber } = req.query;
-      
-      if (!phoneNumber) {
-        return res.status(400).json({
-          success: false,
-          message: 'Phone number is required',
-          errors: [{
-            field: 'phoneNumber',
-            message: 'Phone number parameter is required'
-          }]
-        });
-      }
-
-      // Validate phone number format
-      const validation = phoneValidator.validate(phoneNumber);
-      if (!validation.isValid) {
-        return res.status(400).json({
-          success: false,
-          message: validation.message,
-          errors: [{
-            field: 'phoneNumber',
-            message: validation.message
-          }]
-        });
-      }
-
-      const normalizedPhoneNumber = validation.normalizedNumber;
-      const redisKey = otpGenerator.generateRedisKey(normalizedPhoneNumber);
-      const storedOTPData = await redisClient.get(redisKey);
-      
-      if (!storedOTPData) {
-        return res.status(404).json({
-          success: false,
-          message: 'No active OTP found for this phone number',
-          data: {
-            phoneNumber: normalizedPhoneNumber,
-            hasActiveOTP: false
-          }
-        });
-      }
-
-      const remainingTime = otpGenerator.getRemainingTime(storedOTPData.expiryTime);
-      
-      res.status(200).json({
-        success: true,
-        message: 'OTP status retrieved successfully',
-        data: {
-          phoneNumber: normalizedPhoneNumber,
-          hasActiveOTP: !remainingTime.expired,
-          remainingTimeSeconds: remainingTime.remainingSeconds,
-          expiresAt: new Date(storedOTPData.expiryTime).toISOString()
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Error in checkOTPStatus:', error);
-      
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error occurred while checking OTP status',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
