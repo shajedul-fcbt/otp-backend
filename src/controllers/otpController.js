@@ -2,6 +2,9 @@ const phoneValidator = require('../utils/phoneValidator');
 const otpGenerator = require('../utils/otpGenerator');
 const shopifyService = require('../services/shopifyService');
 const redisClient = require('../config/database');
+const smsService = require('../services/smsService');
+
+
 
 class OTPController {
   /**
@@ -50,6 +53,11 @@ class OTPController {
       // In a real application, you would send the OTP via SMS here
       // For now, we'll just simulate the sending
       console.log(`📨 Simulating OTP send to ${phoneNumber}`);
+      const result = await smsService.sendSingleSMS({
+        msisdn: phoneNumber,
+        sms: `Your OTP code is: ${otpData.otp}. This code will expire in ${otpData.expiryMinutes} minutes. Do not share this code with anyone.`,
+        csms_id: `OTP_${smsService.generateCSMSId()}`
+      });
       
       res.status(200).json({
         success: true,
