@@ -9,6 +9,7 @@ const { Console } = require('winston/lib/winston/transports');
 
 const BASE_URL = 'http://localhost:3000';
 const TEST_PHONE = '+8801712345678';
+const TEST_PHONE_VALID = '+8801521437915';
 const TEST_EMAIL = 'test1@example.com';
 
 class APITester {
@@ -120,6 +121,78 @@ class APITester {
     });
   }
 
+  async testCustomerExists() {
+    return this.runTest('Customer Check Exists', async () => {
+      const response = await axios.get(`${BASE_URL}/api/customer/check-exists`, {
+        params: { phoneNumber: TEST_PHONE }
+      });
+      if (response.status !== 200) throw new Error('Customer exists check failed');
+      
+      const { success, data } = response.data;
+      if (!success) throw new Error('API returned success: false');
+      
+      console.log(`   📱 Phone: ${TEST_PHONE}`);
+      if (data.exists) {
+        console.log(`   👤 Customer found: ${data.customer.name} (${data.customer.email})`);
+      } else {
+        console.log(`   🚫 Customer not found`);
+      }
+      
+      return response.data;
+    });
+  }
+
+  async testCustomerExistsInvalidPhone() {
+    return this.runTest('Customer Check Exists - Invalid Phone', async () => {
+      try {
+        await axios.get(`${BASE_URL}/api/customer/check-exists`, {
+          params: { phoneNumber: 'invalid-phone' }
+        });
+        throw new Error('Should have failed with invalid phone number');
+      } catch (error) {
+        if (error.response && error.response.status === 400) {
+          return { message: 'Correctly rejected invalid phone number for customer check' };
+        }
+        throw error;
+      }
+    });
+  }
+
+  async testCustomerExistsMissingPhone() {
+    return this.runTest('Customer Check Exists - Missing Phone', async () => {
+      try {
+        await axios.get(`${BASE_URL}/api/customer/check-exists`);
+        throw new Error('Should have failed with missing phone number');
+      } catch (error) {
+        if (error.response && error.response.status === 400) {
+          return { message: 'Correctly rejected missing phone number for customer check' };
+        }
+        throw error;
+      }
+    });
+  }
+
+  async testCustomerExistsValidPhone() {
+    return this.runTest('Customer Check Exists - Valid Phone Format', async () => {
+      const response = await axios.get(`${BASE_URL}/api/customer/check-exists`, {
+        params: { phoneNumber: TEST_PHONE_VALID }
+      });
+      if (response.status !== 200) throw new Error('Customer exists check failed with valid phone');
+      
+      const { success, data } = response.data;
+      if (!success) throw new Error('API returned success: false');
+      
+      console.log(`   📱 Valid Phone Test: ${TEST_PHONE_VALID}`);
+      if (data.exists) {
+        console.log(`   👤 Customer found: ${data.customer.name} (${data.customer.email})`);
+      } else {
+        console.log(`   🚫 Customer not found (this is expected for test phone)`);
+      }
+      
+      return response.data;
+    });
+  }
+
 
   async testInvalidPhoneNumber() {
     return this.runTest('Invalid Phone Number Validation', async () => {
@@ -164,23 +237,28 @@ class APITester {
     console.log('🚀 Starting API Tests...\n');
     
     // Basic functionality tests
-    // await this.testHealthCheck();
-    // await this.testAPIStatus();
+    await this.testHealthCheck();
+    await this.testAPIStatus();
     
-    // // OTP functionality tests
-    // await this.testSendOTP();
-    // await this.testVerifyInvalidOTP();
+    // OTP functionality tests
+    await this.testSendOTP();
+    await this.testVerifyInvalidOTP();
     await this.testVerifyvalidOTP();
     
+    // Customer checking tests
+    // await this.testCustomerExists();
+    await this.testCustomerExistsValidPhone();
+    await this.testCustomerExistsInvalidPhone();
+    await this.testCustomerExistsMissingPhone();
     
     // Validation tests
-    // await this.testInvalidPhoneNumber();
+    await this.testInvalidPhoneNumber();
     
     // // Rate limiting test (might trigger limits)
-    // await this.testRateLimiting();
+    await this.testRateLimiting();
     
     // // Customer signup test (do this last as it might create a customer)
-    // await this.testCustomerSignup();
+    await this.testCustomerSignup();
     
     console.log('\n📊 Test Results Summary:');
     console.log('========================');

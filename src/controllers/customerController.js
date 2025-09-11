@@ -145,201 +145,96 @@ class CustomerController {
   }
 
   /**
-   * Get customer information
-   * @param {object} req - Express request object
-   * @param {object} res - Express response object
-   */
-  async getCustomer(req, res) {
-    try {
-      const { identifier } = req.params; // Can be phone number or email
-      
-      console.log(`🔍 Getting customer info for: ${identifier}`);
-
-      // Try to get customer from Redis first
-      const customerKey = otpGenerator.generateCustomerDataKey(identifier);
-      let customerData = await redisClient.get(customerKey);
-      
-      if (!customerData) {
-        // If not in Redis, check Shopify
-        console.log('🏪 Customer not found in Redis, checking Shopify...');
-        const shopifyResult = await shopifyService.checkCustomerExists(identifier);
-        
-        if (!shopifyResult.exists) {
-          return res.status(404).json({
-            success: false,
-            message: 'Customer not found',
-            data: {
-              identifier: identifier,
-              customerExists: false
-            }
-          });
-        }
-        
-        customerData = {
-          customerId: shopifyResult.customer.id,
-          phoneNumber: shopifyResult.customer.phone,
-          email: shopifyResult.customer.email,
-          name: `${shopifyResult.customer.firstName} ${shopifyResult.customer.lastName}`.trim(),
-          acceptsMarketing: shopifyResult.customer.acceptsMarketing,
-          createdAt: shopifyResult.customer.createdAt,
-          shopifyData: shopifyResult.customer
-        };
-      }
-
-      // Prepare response (exclude sensitive data)
-      const responseData = {
-        customerId: customerData.customerId,
-        phoneNumber: customerData.phoneNumber,
-        email: customerData.email,
-        name: customerData.name,
-        acceptsMarketing: customerData.acceptsMarketing,
-        createdAt: customerData.createdAt
-      };
-
-      res.status(200).json({
-        success: true,
-        message: 'Customer information retrieved successfully',
-        data: responseData
-      });
-
-    } catch (error) {
-      console.error('❌ Error in getCustomer:', error);
-      
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error occurred while retrieving customer information',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
-  /**
-   * Update customer password
-   * @param {object} req - Express request object
-   * @param {object} res - Express response object
-   */
-  async updatePassword(req, res) {
-    try {
-      const { phoneNumber, currentPassword, newPassword } = req.body;
-      
-      console.log(`🔐 Password update request for: ${phoneNumber}`);
-
-      // Get customer data from Redis
-      const customerKey = otpGenerator.generateCustomerDataKey(phoneNumber);
-      const customerData = await redisClient.get(customerKey);
-      
-      if (!customerData) {
-        return res.status(404).json({
-          success: false,
-          message: 'Customer not found',
-          data: {
-            phoneNumber: phoneNumber,
-            customerExists: false
-          }
-        });
-      }
-
-      // Verify current password
-      const isCurrentPasswordValid = bcrypt.compareSync(currentPassword, customerData.hashedPassword);
-      
-      if (!isCurrentPasswordValid) {
-        return res.status(400).json({
-          success: false,
-          message: 'Current password is incorrect'
-        });
-      }
-
-      // Hash the new password
-      const newHashedPassword = otpGenerator.hashPassword(newPassword);
-      
-      // Update customer data in Redis
-      customerData.hashedPassword = newHashedPassword;
-      customerData.updatedAt = new Date().toISOString();
-      
-      await redisClient.set(customerKey, customerData);
-      
-      // Also update by email key if exists
-      if (customerData.email) {
-        const emailKey = otpGenerator.generateCustomerDataKey(customerData.email);
-        await redisClient.set(emailKey, customerData);
-      }
-
-      console.log(`✅ Password updated successfully for: ${phoneNumber}`);
-
-      res.status(200).json({
-        success: true,
-        message: 'Password updated successfully',
-        data: {
-          phoneNumber: phoneNumber,
-          updatedAt: customerData.updatedAt
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Error in updatePassword:', error);
-      
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error occurred while updating password',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-
-  /**
-   * Check if customer exists
+   * Check if a customer exists on Shopify by phone number
    * @param {object} req - Express request object
    * @param {object} res - Express response object
    */
   async checkCustomerExists(req, res) {
     try {
-      const { identifier } = req.query; // Can be phone number or email
-      
-      if (!identifier) {
+      console.log('req.query', req.query);
+      let { phoneNumber } = req.query;
+      console.log('phoneNumber', phoneNumber);
+
+      if (!phoneNumber) {
         return res.status(400).json({
           success: false,
-          message: 'Identifier (phone number or email) is required',
-          errors: [{
-            field: 'identifier',
-            message: 'Identifier parameter is required'
-          }]
+          message: 'Phone number is required',
+          error: 'Missing phone number parameter'
         });
       }
 
-      console.log(`🔍 Checking customer existence for: ${identifier}`);
+      // Validate Bangladeshi phone number (with or without +88)
+      // Accepts: +8801XXXXXXXXX or 01XXXXXXXXX
+      const bdPhoneRegex = /^(\+8801[3-9]\d{8}|01[3-9]\d{8})$/;
+      if (!bdPhoneRegex.test(phoneNumber)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid Bangladeshi phone number format',
+          error: 'Phone number must be a valid Bangladeshi number (e.g. +88017XXXXXXXX or 017XXXXXXXX)'
+        });
+      }
 
-      // Check Redis first
-      const customerKey = otpGenerator.generateCustomerDataKey(identifier);
-      const customerData = await redisClient.get(customerKey);
-      
-      if (customerData) {
+      // Convert to international format if needed
+      if (phoneNumber.startsWith('01')) {
+        phoneNumber = '+88' + phoneNumber;
+      }
+      if (!phoneNumber.startsWith('+880')) {
+        // Should not happen due to regex, but just in case
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid Bangladeshi phone number format',
+          error: 'Phone number must start with +880 or 01'
+        });
+      }
+
+      console.log(`🔍 Checking customer existence for phone: ${phoneNumber}`);
+
+      // Check if customer exists in Shopify
+      const customerCheck = await shopifyService.checkCustomerExists(phoneNumber);
+      if (customerCheck.exists && customerCheck.customer) {
+        // Customer found - return customer details
+        const customerData = {
+          exists: true,
+          customer: {
+            name: customerCheck.customer.displayName || customerCheck.customer.firstName + ' ' + customerCheck.customer.lastName,
+            email: customerCheck.customer.email,
+            phoneNumber: customerCheck.customer.phone || phoneNumber,
+            customerId: customerCheck.customer.id
+          }
+        };
+
+        console.log(`✅ Customer found: ${customerData.customer.email}`);
+
         return res.status(200).json({
           success: true,
           message: 'Customer found',
+          data: customerData
+        });
+      } else {
+        // Customer not found
+        console.log(`❌ Customer not found for phone: ${phoneNumber}`);
+
+        return res.status(200).json({
+          success: true,
+          message: 'Customer not found',
           data: {
-            identifier: identifier,
-            customerExists: true,
-            source: 'redis'
+            exists: false,
+            phoneNumber: phoneNumber
           }
         });
       }
 
-      // Check Shopify
-      const shopifyResult = await shopifyService.checkCustomerExists(identifier);
-      
-      res.status(200).json({
-        success: true,
-        message: shopifyResult.exists ? 'Customer found' : 'Customer not found',
-        data: {
-          identifier: identifier,
-          customerExists: shopifyResult.exists,
-          source: 'shopify',
-          ...(shopifyResult.error && { error: shopifyResult.error })
-        }
-      });
-
     } catch (error) {
       console.error('❌ Error in checkCustomerExists:', error);
+      
+      // Handle specific Shopify errors
+      if (error.message.includes('Shopify')) {
+        return res.status(503).json({
+          success: false,
+          message: 'External service error. Please try again later.',
+          error: 'Shopify integration error'
+        });
+      }
       
       res.status(500).json({
         success: false,
@@ -348,6 +243,7 @@ class CustomerController {
       });
     }
   }
+
 }
 
 module.exports = new CustomerController();

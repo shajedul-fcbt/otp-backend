@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const customerController = require('../controllers/customerController');
-const { validate, validatePhoneNumber, customerSignupSchema } = require('../middlewares/validation');
+const { validate, validatePhoneNumber, validatePhoneNumberQuery, customerSignupSchema } = require('../middlewares/validation');
 const { signupLimiter, generalLimiter } = require('../middlewares/rateLimiter');
 
 /**
@@ -128,249 +128,88 @@ router.post('/signup',
   customerController.createCustomer
 );
 
-// /**
-//  * @swagger
-//  * /api/customer/{identifier}:
-//  *   get:
-//  *     summary: Get customer information
-//  *     description: |
-//  *       Retrieves customer information by phone number or email.
-//  *       First checks Redis cache, then falls back to Shopify if not found.
-//  *     tags: [Customer]
-//  *     parameters:
-//  *       - in: path
-//  *         name: identifier
-//  *         required: true
-//  *         schema:
-//  *           type: string
-//  *         description: Customer's phone number or email address
-//  *         examples:
-//  *           phone:
-//  *             summary: Phone number
-//  *             value: "+8801712345678"
-//  *           email:
-//  *             summary: Email address
-//  *             value: "john.doe@example.com"
-//  *     responses:
-//  *       200:
-//  *         description: Customer information retrieved successfully
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 success:
-//  *                   type: boolean
-//  *                   example: true
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Customer information retrieved successfully"
-//  *                 data:
-//  *                   type: object
-//  *                   properties:
-//  *                     customerId:
-//  *                       type: string
-//  *                       example: "gid://shopify/Customer/123456789"
-//  *                     phoneNumber:
-//  *                       type: string
-//  *                       example: "+8801712345678"
-//  *                     email:
-//  *                       type: string
-//  *                       example: "john.doe@example.com"
-//  *                     name:
-//  *                       type: string
-//  *                       example: "John Doe"
-//  *                     acceptsMarketing:
-//  *                       type: boolean
-//  *                       example: true
-//  *                     createdAt:
-//  *                       type: string
-//  *                       format: date-time
-//  *                       example: "2024-01-15T10:30:00.000Z"
-//  *       404:
-//  *         description: Customer not found
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 success:
-//  *                   type: boolean
-//  *                   example: false
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Customer not found"
-//  *                 data:
-//  *                   type: object
-//  *                   properties:
-//  *                     identifier:
-//  *                       type: string
-//  *                       example: "+8801712345678"
-//  *                     customerExists:
-//  *                       type: boolean
-//  *                       example: false
-//  */
-// router.get('/:identifier', 
-//   generalLimiter,                   // General rate limiting
-//   customerController.getCustomer
-// );
+/**
+ * @swagger
+ * /api/customer/check-exists:
+ *   get:
+ *     summary: Check if a customer exists on Shopify by phone number
+ *     description: |
+ *       Checks if a customer with the given phone number exists in Shopify.
+ *       Returns customer details (name, email, phone) if found, or false if not found.
+ *     tags: [Customer]
+ *     parameters:
+ *       - in: query
+ *         name: phoneNumber
+ *         required: true
+ *         schema:
+ *           type: string
+ *           pattern: '^(\+8801[3-9]\d{8}|01[3-9]\d{8})$'
+ *         description: Bangladeshi phone number (with or without +88 prefix)
+ *         examples:
+ *           international:
+ *             value: "+8801712345678"
+ *             summary: International format
+ *           national:
+ *             value: "01712345678"
+ *             summary: National format
+ *     responses:
+ *       200:
+ *         description: Customer check completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *             examples:
+ *               customer_found:
+ *                 summary: Customer exists
+ *                 value:
+ *                   success: true
+ *                   message: "Customer found"
+ *                   data:
+ *                     exists: true
+ *                     customer:
+ *                       name: "John Doe"
+ *                       email: "john.doe@example.com"
+ *                       phoneNumber: "+8801712345678"
+ *                       customerId: "gid://shopify/Customer/123456789"
+ *               customer_not_found:
+ *                 summary: Customer does not exist
+ *                 value:
+ *                   success: true
+ *                   message: "Customer not found"
+ *                   data:
+ *                     exists: false
+ *                     phoneNumber: "+8801712345678"
+ *       400:
+ *         description: Missing phone number parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               missing_phone:
+ *                 summary: Missing phone number
+ *                 value:
+ *                   success: false
+ *                   message: "Phone number is required"
+ *                   error: "Missing phone number parameter"
+ *       429:
+ *         description: Too many requests
+ *       503:
+ *         description: Service unavailable - Shopify connection error
+ */
+router.get('/check-exists', 
+  generalLimiter,                   // Rate limit requests
+  validatePhoneNumberQuery,         // Validate phone number in query params
+  customerController.checkCustomerExists
+);
 
-// /**
-//  * @swagger
-//  * /api/customer/check-exists:
-//  *   get:
-//  *     summary: Check if customer exists
-//  *     description: |
-//  *       Checks if a customer exists by phone number or email.
-//  *       Useful for frontend validation before signup or login attempts.
-//  *     tags: [Customer]
-//  *     parameters:
-//  *       - in: query
-//  *         name: identifier
-//  *         required: true
-//  *         schema:
-//  *           type: string
-//  *         description: Customer's phone number or email address
-//  *         examples:
-//  *           phone:
-//  *             summary: Phone number
-//  *             value: "+8801712345678"
-//  *           email:
-//  *             summary: Email address
-//  *             value: "john.doe@example.com"
-//  *     responses:
-//  *       200:
-//  *         description: Customer existence check completed
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 success:
-//  *                   type: boolean
-//  *                   example: true
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Customer found"
-//  *                 data:
-//  *                   type: object
-//  *                   properties:
-//  *                     identifier:
-//  *                       type: string
-//  *                       example: "+8801712345678"
-//  *                     customerExists:
-//  *                       type: boolean
-//  *                       example: true
-//  *                     source:
-//  *                       type: string
-//  *                       enum: ["redis", "shopify"]
-//  *                       example: "redis"
-//  *             examples:
-//  *               customer_exists:
-//  *                 summary: Customer exists
-//  *                 value:
-//  *                   success: true
-//  *                   message: "Customer found"
-//  *                   data:
-//  *                     identifier: "+8801712345678"
-//  *                     customerExists: true
-//  *                     source: "redis"
-//  *               customer_not_exists:
-//  *                 summary: Customer does not exist
-//  *                 value:
-//  *                   success: true
-//  *                   message: "Customer not found"
-//  *                   data:
-//  *                     identifier: "+8801712345678"
-//  *                     customerExists: false
-//  *                     source: "shopify"
-//  *       400:
-//  *         description: Missing identifier parameter
-//  */
-// router.get('/check-exists', 
-//   generalLimiter,                   // General rate limiting
-//   customerController.checkCustomerExists
-// );
-
-// /**
-//  * @swagger
-//  * /api/customer/update-password:
-//  *   put:
-//  *     summary: Update customer password
-//  *     description: |
-//  *       Updates the customer's password after verifying the current password.
-//  *       Only updates the password in Redis storage, not in Shopify.
-//  *     tags: [Customer]
-//  *     requestBody:
-//  *       required: true
-//  *       content:
-//  *         application/json:
-//  *           schema:
-//  *             type: object
-//  *             required:
-//  *               - phoneNumber
-//  *               - currentPassword
-//  *               - newPassword
-//  *             properties:
-//  *               phoneNumber:
-//  *                 type: string
-//  *                 pattern: '^\\+880[1-9][0-9]{8}$'
-//  *                 description: Customer's phone number
-//  *                 example: "+8801712345678"
-//  *               currentPassword:
-//  *                 type: string
-//  *                 minLength: 6
-//  *                 description: Current password
-//  *                 example: "oldPassword123"
-//  *               newPassword:
-//  *                 type: string
-//  *                 minLength: 8
-//  *                 description: New password (minimum 8 characters)
-//  *                 example: "newPassword456"
-//  *     responses:
-//  *       200:
-//  *         description: Password updated successfully
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 success:
-//  *                   type: boolean
-//  *                   example: true
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Password updated successfully"
-//  *                 data:
-//  *                   type: object
-//  *                   properties:
-//  *                     phoneNumber:
-//  *                       type: string
-//  *                       example: "+8801712345678"
-//  *                     updatedAt:
-//  *                       type: string
-//  *                       format: date-time
-//  *                       example: "2024-01-15T10:30:00.000Z"
-//  *       400:
-//  *         description: Invalid current password or validation error
-//  *         content:
-//  *           application/json:
-//  *             schema:
-//  *               type: object
-//  *               properties:
-//  *                 success:
-//  *                   type: boolean
-//  *                   example: false
-//  *                 message:
-//  *                   type: string
-//  *                   example: "Current password is incorrect"
-//  *       404:
-//  *         description: Customer not found
-//  */
-// router.put('/update-password', 
-//   generalLimiter,                   // General rate limiting
-//   validatePhoneNumber,              // Validate phone number
-//   customerController.updatePassword
-// );
 
 module.exports = router;

@@ -152,6 +152,41 @@ const validatePhoneNumber = (req, res, next) => {
 };
 
 /**
+ * Custom phone number validation middleware for query parameters
+ */
+const validatePhoneNumberQuery = (req, res, next) => {
+  const phoneNumber = req.query.phoneNumber;
+  
+  if (!phoneNumber) {
+    return res.status(400).json({
+      success: false,
+      message: 'Phone number is required',
+      error: 'Missing phone number parameter'
+    });
+  }
+
+  const validation = phoneValidator.validate(phoneNumber);
+  
+  if (!validation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: validation.message,
+      errors: [{
+        field: 'phoneNumber',
+        message: validation.message,
+        value: phoneNumber
+      }]
+    });
+  }
+
+  // Replace with normalized phone number
+  req.query.phoneNumber = validation.normalizedNumber;
+  req.phoneValidation = validation;
+  
+  next();
+};
+
+/**
  * Error handler for validation errors
  */
 const handleValidationError = (error, req, res, next) => {
@@ -187,10 +222,11 @@ const sanitizeInput = (req, res, next) => {
   };
 
   const sanitizeObject = (obj) => {
+    console.log('obj', obj);
     if (obj && typeof obj === 'object') {
       for (let key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          if (typeof obj[key] === 'object') {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          if (typeof obj[key] === 'object' && obj[key] !== null) {
             sanitizeObject(obj[key]);
           } else {
             obj[key] = sanitizeValue(obj[key]);
@@ -235,6 +271,7 @@ module.exports = {
   // Validation middleware
   validate,
   validatePhoneNumber,
+  validatePhoneNumberQuery,
   handleValidationError,
   sanitizeInput,
   validateContentType,

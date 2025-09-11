@@ -181,9 +181,7 @@ app.get('/', (req, res) => {
       },
       customer: {
         signup: 'POST /api/customer/signup',
-        get: 'GET /api/customer/:identifier',
-        checkExists: 'GET /api/customer/check-exists',
-        updatePassword: 'PUT /api/customer/update-password'
+        checkExists: 'GET /api/customer/check-exists'
       }
     }
   });
