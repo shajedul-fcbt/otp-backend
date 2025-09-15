@@ -1,10 +1,11 @@
 const crypto = require('crypto');
-require('dotenv').config();
+const config = require('../config/environment');
 
 class OTPGenerator {
   constructor() {
-    this.secretKey = process.env.OTP_SECRET_KEY || 'default_secret_key_please_change_in_production';
-    this.expiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES) || 10;
+    this.config = config.otp;
+    this.secretKey = this.config.secretKey;
+    this.expiryMinutes = this.config.expiryMinutes;
   }
 
   /**
@@ -31,8 +32,8 @@ class OTPGenerator {
       
       // Extract 6 digits from HMAC
       const offset = parseInt(hmacResult.substr(-1), 16) % 10;
-      const otpNum = parseInt(hmacResult.substr(offset, 6), 16) % 1000000;
-      const otp = otpNum.toString().padStart(6, '0');
+      const otpNum = parseInt(hmacResult.substr(offset, this.config.length), 16) % Math.pow(10, this.config.length);
+      const otp = otpNum.toString().padStart(this.config.length, '0');
       
       // Calculate expiry time
       const expiryTime = currentTime + (this.expiryMinutes * 60 * 1000);

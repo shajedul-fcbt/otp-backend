@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-require('dotenv').config();
+const config = require('./config/environment');
 
 // Import middleware
 const { generalLimiter, swaggerLimiter } = require('./middlewares/rateLimiter');
@@ -18,38 +18,25 @@ const shopifyService = require('./services/shopifyService');
 
 // Create Express application
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.server.port;
 
 // ===== SECURITY MIDDLEWARE =====
 // Helmet for security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-  crossOriginEmbedderPolicy: false
-}));
+app.use(helmet(config.security.helmet));
 
-// CORS configuration - Following memory guidelines for public API endpoints [[memory:8421915]]
+// CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
     // In development, allow all origins
-    if (process.env.NODE_ENV === 'development') {
+    if (config.server.isDevelopment) {
       return callback(null, true);
     }
     
     // In production, check against allowed origins
-    const allowedOrigins = process.env.CORS_ORIGIN 
-      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-      : ['*'];
+    const allowedOrigins = config.security.cors.origin;
     
     if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -57,11 +44,11 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: false, // No credentials needed for public API
-  optionsSuccessStatus: 200, // Support legacy browsers
-  preflightContinue: false
+  methods: config.security.cors.methods,
+  allowedHeaders: config.security.cors.allowedHeaders,
+  credentials: config.security.cors.credentials,
+  optionsSuccessStatus: config.security.cors.optionsSuccessStatus,
+  preflightContinue: config.security.cors.preflightContinue
 };
 
 app.use(cors(corsOptions));
@@ -70,8 +57,8 @@ app.use(cors(corsOptions));
 app.options('/{*any}', cors(corsOptions));
 
 // ===== PARSING MIDDLEWARE =====
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: config.api.maxRequestSize }));
+app.use(express.urlencoded({ extended: true, limit: config.api.maxRequestSize }));
 
 // ===== CUSTOM MIDDLEWARE =====
 app.use(sanitizeInput);           // Sanitize input to prevent XSS
@@ -87,12 +74,13 @@ app.use((req, res, next) => {
   console.log(`${timestamp} - ${method} ${url} - IP: ${ip}`);
   
   // Log request body for debugging (exclude sensitive data)
-  if (['POST', 'PUT', 'PATCH'].includes(method) && process.env.NODE_ENV === 'development') {
+  if (['POST', 'PUT', 'PATCH'].includes(method) && config.logging.enableRequestLogging && config.server.isDevelopment) {
     const logBody = { ...req.body };
-    if (logBody.otp) logBody.otp = '***';
-    if (logBody.password) logBody.password = '***';
-    if (logBody.currentPassword) logBody.currentPassword = '***';
-    if (logBody.newPassword) logBody.newPassword = '***';
+    if (config.logging.maskSensitiveData) {
+      config.logging.sensitiveFields.forEach(field => {
+        if (logBody[field]) logBody[field] = '***';
+      });
+    }
     console.log('Request Body:', logBody);
   }
   
@@ -106,7 +94,7 @@ app.get('/health', (req, res) => {
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: config.server.nodeEnv
   });
 });
 
@@ -135,15 +123,15 @@ app.get('/api/status', async (req, res) => {
       },
       server: {
         uptime: process.uptime(),
-        environment: process.env.NODE_ENV || 'development',
-        version: '1.0.0'
+        environment: config.server.nodeEnv,
+        version: config.api.version
       }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: 'Error checking API status',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: config.server.isDevelopment ? error.message : undefined
     });
   }
 });
@@ -168,7 +156,7 @@ app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Welcome to OTP Authentication API',
-    version: '1.0.0',
+    version: config.api.version,
     documentation: '/api-docs',
     endpoints: {
       health: '/health',
@@ -241,7 +229,7 @@ app.use((error, req, res, next) => {
   res.status(500).json({
     success: false,
     message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    error: config.server.isDevelopment ? error.message : undefined,
     timestamp: new Date().toISOString()
   });
 });
@@ -267,7 +255,7 @@ async function startServer() {
     const server = app.listen(PORT, () => {
       console.log('🚀 ===================================');
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🚀 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🚀 Environment: ${config.server.nodeEnv}`);
       console.log(`🚀 API Documentation: http://localhost:${PORT}/api-docs`);
       console.log(`🚀 Health Check: http://localhost:${PORT}/health`);
       console.log(`🚀 API Status: http://localhost:${PORT}/api/status`);

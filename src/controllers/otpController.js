@@ -27,7 +27,7 @@ class OTPController {
       const result = await otpService.sendOTP(phoneNumber);
       
       // Log OTP for development (remove in production)
-      if (process.env.NODE_ENV === 'development' && result.data) {
+      if (config.server.isDevelopment && result.data) {
         console.log(`🔑 Generated OTP for ${phoneNumber}: [HIDDEN]`);
       }
       
@@ -36,7 +36,7 @@ class OTPController {
     } catch (error) {
       console.error('❌ Error in sendOTP:', error);
       
-      const safeMessage = InputSanitizer.createSafeErrorMessage(error, process.env.NODE_ENV === 'development');
+      const safeMessage = InputSanitizer.createSafeErrorMessage(error, config.server.isDevelopment);
       
       // Handle specific error types
       if (error.message.includes('Redis') || error.message.includes('Database')) {
@@ -103,7 +103,7 @@ class OTPController {
     } catch (error) {
       console.error('❌ Error in verifyOTP:', error);
       
-      const safeMessage = InputSanitizer.createSafeErrorMessage(error, process.env.NODE_ENV === 'development');
+      const safeMessage = InputSanitizer.createSafeErrorMessage(error, config.server.isDevelopment);
       
       // Handle specific error types
       if (error.message.includes('Redis') || error.message.includes('Database')) {
@@ -162,7 +162,7 @@ class OTPController {
     } catch (error) {
       console.error('❌ Error in resendOTP:', error);
       
-      const safeMessage = InputSanitizer.createSafeErrorMessage(error, process.env.NODE_ENV === 'development');
+      const safeMessage = InputSanitizer.createSafeErrorMessage(error, config.server.isDevelopment);
       
       // Handle specific error types
       if (error.message.includes('Redis') || error.message.includes('Database')) {

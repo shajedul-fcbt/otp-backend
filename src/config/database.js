@@ -1,29 +1,30 @@
 const redis = require('redis');
-require('dotenv').config();
+const config = require('./environment');
 
 class RedisClient {
   constructor() {
     this.client = null;
     this.isConnected = false;
+    this.config = config.redis;
   }
 
   async connect() {
     try {
       this.client = redis.createClient({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD || undefined,
+        host: this.config.host,
+        port: this.config.port,
+        password: this.config.password,
         retry_strategy: (options) => {
           if (options.error && options.error.code === 'ECONNREFUSED') {
             return new Error('The server refused the connection');
           }
-          if (options.total_retry_time > 1000 * 60 * 60) {
+          if (options.total_retry_time > this.config.retryStrategy.maxRetryTime) {
             return new Error('Retry time exhausted');
           }
-          if (options.attempt > 10) {
+          if (options.attempt > this.config.retryStrategy.maxAttempts) {
             return undefined;
           }
-          return Math.min(options.attempt * 100, 3000);
+          return Math.min(options.attempt * this.config.retryStrategy.minDelay, this.config.retryStrategy.maxDelay);
         }
       });
 

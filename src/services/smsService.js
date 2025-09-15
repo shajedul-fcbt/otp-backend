@@ -1,14 +1,16 @@
 const axios = require('axios');
-require('dotenv').config();
+const config = require('../config/environment');
+
 /**
  * SMS Service for SSL Wireless API Integration
  * Handles single SMS sending functionality
  */
 class SMSService {
   constructor() {
-    this.baseURL = process.env.SMS_API_BASE_URL || '';
-    this.apiToken = process.env.SMS_API_TOKEN || '';
-    this.sid = process.env.SMS_SID || '';
+    this.config = config.sms;
+    this.baseURL = this.config.baseURL;
+    this.apiToken = this.config.apiToken;
+    this.sid = this.config.sid;
     
     // Validate required environment variables
     this.validateConfig();
@@ -166,7 +168,7 @@ class SMSService {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        timeout: 30000 // 30 seconds timeout
+        timeout: this.config.timeout
       });
 
       // Check response status

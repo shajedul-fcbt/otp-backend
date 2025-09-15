@@ -1,16 +1,17 @@
 const axios = require('axios');
-require('dotenv').config();
+const config = require('../config/environment');
 
 class ShopifyService {
   constructor() {
-    this.storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
-    this.storefrontAccessToken = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN;
-    this.adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    this.config = config.shopify;
+    this.storeDomain = this.config.storeDomain;
+    this.storefrontAccessToken = this.config.storefrontAccessToken;
+    this.adminAccessToken = this.config.adminAccessToken;
     
     // API URLs
-    this.storefrontApiUrl = `https://${this.storeDomain}/api/2024-10/graphql.json`;
-    this.adminApiUrl = `https://${this.storeDomain}/admin/api/2024-10/graphql.json`;
-    this.adminRestApiUrl = `https://${this.storeDomain}/admin/api/2024-10`;
+    this.storefrontApiUrl = this.config.urls.storefront;
+    this.adminApiUrl = this.config.urls.adminGraphQL;
+    this.adminRestApiUrl = this.config.urls.adminREST;
 
     if (!this.storeDomain) {
       console.warn('⚠️ SHOPIFY_STORE_DOMAIN is missing in environment variables.');
