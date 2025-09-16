@@ -56,15 +56,15 @@ const PASSWORD_CONFIG = {
 
 // Logging
 const LOG_MESSAGES = {
-  CUSTOMER_SIGNUP_REQUEST: '👤 Customer signup request',
-  CHECKING_EXISTING_CUSTOMER: '🔍 Checking if customer already exists',
-  GENERATING_PASSWORD: '🔐 Generating random password',
-  CREATING_SHOPIFY_CUSTOMER: '🏪 Creating customer in Shopify',
-  STORING_REDIS_DATA: '💾 Storing customer data in Redis',
-  CUSTOMER_CREATED_SUCCESS: '✅ Customer created successfully',
-  CUSTOMER_FOUND: '✅ Customer found',
-  CUSTOMER_NOT_FOUND: '❌ Customer not found',
-  ERROR_OCCURRED: '❌ Error occurred'
+  CUSTOMER_SIGNUP_REQUEST: 'Customer signup request',
+  CHECKING_EXISTING_CUSTOMER: 'Checking if customer already exists',
+  GENERATING_PASSWORD: 'Generating random password',
+  CREATING_SHOPIFY_CUSTOMER: 'Creating customer in Shopify',
+  STORING_REDIS_DATA: 'Storing customer data in Redis',
+  CUSTOMER_CREATED_SUCCESS: 'Customer created successfully',
+  CUSTOMER_FOUND: 'Customer found',
+  CUSTOMER_NOT_FOUND: 'Customer not found',
+  ERROR_OCCURRED: 'Error occurred'
 };
 
 module.exports = {

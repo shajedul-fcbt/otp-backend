@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config/environment');
+const logger = require('../config/logger');
 
 /**
  * SMS Service for SSL Wireless API Integration
@@ -134,7 +135,7 @@ class SMSService {
     try {
       const { msisdn, sms, csms_id } = smsData;
 
-      console.log(`📱 Preparing to send SMS to: ${msisdn}`);
+      logger.info(`Preparing to send SMS to: ${msisdn}`);
 
       // Validate phone number
       const phoneValidation = this.validateMSISDN(msisdn);
@@ -157,10 +158,10 @@ class SMSService {
         csms_id: csms_id || this.generateCSMSId()
       };
 
-      console.log(`📤 Sending SMS via SSL Wireless API...`);
-      console.log(`   📱 To: ${payload.msisdn}`);
-      console.log(`   📝 Message: ${payload.sms.substring(0, 50)}${payload.sms.length > 50 ? '...' : ''}`);
-      console.log(`   🆔 CSMS ID: ${payload.csms_id}`);
+      logger.info(`Sending SMS via SSL Wireless API...`);
+      logger.info(`   To: ${payload.msisdn}`);
+      logger.info(`   Message: ${payload.sms.substring(0, 50)}${payload.sms.length > 50 ? '...' : ''}`);
+      logger.info(`   CSMS ID: ${payload.csms_id}`);
 
       // Make API request
       const response = await axios.post(`${this.baseURL}/api/v3/send-sms`, payload, {
@@ -183,9 +184,9 @@ class SMSService {
         throw new Error(`SMS sending failed: ${responseData.error_message || 'Unknown error'}`);
       }
 
-      console.log(`✅ SMS sent successfully!`);
-      console.log(`   📱 Recipient: ${payload.msisdn}`);
-      console.log(`   🆔 Reference ID: ${responseData.smsinfo?.[0]?.reference_id || 'N/A'}`);
+      logger.info(`SMS sent successfully!`);
+      logger.info(`   Recipient: ${payload.msisdn}`);
+      logger.info(`   Reference ID: ${responseData.smsinfo?.[0]?.reference_id || 'N/A'}`);
 
       return {
         success: true,
@@ -203,12 +204,12 @@ class SMSService {
       };
 
     } catch (error) {
-      console.error('❌ SMS sending failed:', error.message);
+      logger.error('ERROR: SMS sending failed:', error.message);
       
       // Handle different types of errors
       if (error.response) {
         // API responded with error status
-        console.error('   📡 API Response:', error.response.data);
+        logger.error('   API Response:', error.response.data);
         return {
           success: false,
           message: 'SMS API error',
@@ -218,7 +219,7 @@ class SMSService {
         };
       } else if (error.request) {
         // Request was made but no response received
-        console.error('   🌐 Network error - no response received');
+        logger.error('   Network error - no response received');
         return {
           success: false,
           message: 'Network error - unable to reach SMS service',

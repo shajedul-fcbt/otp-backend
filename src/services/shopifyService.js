@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config/environment');
+const logger = require('../config/logger');
 
 class ShopifyService {
   constructor() {
@@ -14,10 +15,10 @@ class ShopifyService {
     this.adminRestApiUrl = this.config.urls.adminREST;
 
     if (!this.storeDomain) {
-      console.warn('⚠️ SHOPIFY_STORE_DOMAIN is missing in environment variables.');
+      logger.warn('WARNING: SHOPIFY_STORE_DOMAIN is missing in environment variables.');
     }
     if (!this.storefrontAccessToken && !this.adminAccessToken) {
-      console.warn('⚠️ Either SHOPIFY_STOREFRONT_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN is required.');
+      logger.warn('WARNING: Either SHOPIFY_STOREFRONT_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN is required.');
     }
   }
 
@@ -42,8 +43,8 @@ class ShopifyService {
       }
 
       // Fallback: Assume customer doesn't exist
-      console.warn('⚠️ Admin API access token not configured');
-      console.warn('⚠️ Cannot verify customer existence - assuming new customer');
+      logger.warn('WARNING: Admin API access token not configured');
+      logger.warn('WARNING: Cannot verify customer existence - assuming new customer');
       
       return {
         exists: false,
@@ -52,7 +53,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Error checking customer existence:', error.message);
+      logger.error('Error checking customer existence:', error.message);
       
       return {
         exists: false,
@@ -73,7 +74,7 @@ class ShopifyService {
       // GraphQL Admin API also works but REST is simpler for this use case
       const searchUrl = `${this.adminRestApiUrl}/customers.json?phone=${encodeURIComponent(phoneNumber)}&limit=1`;
 
-      console.log('searchUrl', searchUrl);
+      logger.debug('searchUrl', searchUrl);
       
       const response = await axios.get(searchUrl, {
         headers: {
@@ -108,7 +109,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Admin API customer check failed:', error.message);
+      logger.error('Admin API customer check failed:', error.message);
       
       if (error.response?.status === 401) {
         return {
@@ -166,7 +167,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Error creating customer:', error.message);
+      logger.error('Error creating customer:', error.message);
       
       return {
         success: false,
@@ -264,7 +265,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Admin API customer creation failed:', error.message);
+      logger.error('Admin API customer creation failed:', error.message);
       
       if (error.response?.status === 401) {
         return {
@@ -303,7 +304,7 @@ class ShopifyService {
   async createCustomerWithStorefrontAPI(customerData) {
     // Storefront API customer creation is very limited
     // It doesn't support phone numbers or custom fields
-    console.warn('⚠️ Using Storefront API for customer creation - limited functionality');
+    logger.warn('WARNING: Using Storefront API for customer creation - limited functionality');
     
     return {
       success: false,
@@ -362,7 +363,7 @@ class ShopifyService {
       );
 
       if (response.data.errors) {
-        console.error('Shopify GraphQL errors:', response.data.errors);
+        logger.error('Shopify GraphQL errors:', response.data.errors);
         return {
           success: false,
           customer: null,
@@ -379,7 +380,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Error retrieving customer:', error.message);
+      logger.error('Error retrieving customer:', error.message);
       return {
         success: false,
         customer: null,
@@ -441,7 +442,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Shopify connection test failed:', error.message);
+      logger.error('Shopify connection test failed:', error.message);
       return {
         success: false,
         message: 'Failed to connect to Shopify'

@@ -6,6 +6,7 @@ const otpGenerator = require('../utils/otpGenerator');
 const shopifyService = require('./shopifyService');
 const smsService = require('./smsService');
 const redisClient = require('../config/database');
+const logger = require('../config/logger');
 const { 
   OTP_CONFIG, 
   ERROR_MESSAGES, 
@@ -25,7 +26,7 @@ class OTPService {
    */
   async sendOTP(phoneNumber) {
     try {
-      console.log(`${LOG_MESSAGES.OTP_REQUEST}: ${phoneNumber}`);
+      logger.info(`${LOG_MESSAGES.OTP_REQUEST}: ${phoneNumber}`);
 
       // Validate phone number
       const phoneValidation = this.validatePhoneNumber(phoneNumber);
@@ -36,11 +37,11 @@ class OTPService {
       const normalizedPhone = phoneValidation.normalizedNumber;
 
       // Check if customer exists in Shopify
-      console.log(LOG_MESSAGES.CHECKING_CUSTOMER);
+      logger.info(LOG_MESSAGES.CHECKING_CUSTOMER);
       const customerCheck = await this.checkCustomerExists(normalizedPhone);
       
       // Generate OTP
-      console.log(LOG_MESSAGES.GENERATING_OTP);
+      logger.info(LOG_MESSAGES.GENERATING_OTP);
       const otpData = otpGenerator.generateOTP(normalizedPhone);
       
       // Store OTP in Redis with expiry
@@ -59,7 +60,7 @@ class OTPService {
       };
 
     } catch (error) {
-      console.error(`${LOG_MESSAGES.ERROR_OCCURRED} in sendOTP:`, error);
+      logger.error(`${LOG_MESSAGES.ERROR_OCCURRED} in sendOTP:`, error);
       throw this.handleOTPError(error);
     }
   }
@@ -72,7 +73,7 @@ class OTPService {
    */
   async verifyOTP(phoneNumber, otp) {
     try {
-      console.log(`${LOG_MESSAGES.OTP_VERIFICATION}: ${phoneNumber}`);
+      logger.info(`${LOG_MESSAGES.OTP_VERIFICATION}: ${phoneNumber}`);
 
       // Validate inputs
       const phoneValidation = this.validatePhoneNumber(phoneNumber);
@@ -88,7 +89,7 @@ class OTPService {
       const normalizedPhone = phoneValidation.normalizedNumber;
 
       // Get stored OTP from Redis
-      console.log(LOG_MESSAGES.RETRIEVING_OTP);
+      logger.info(LOG_MESSAGES.RETRIEVING_OTP);
       const storedOTPData = await this.getOTPFromRedis(normalizedPhone);
       
       if (!storedOTPData) {
@@ -119,7 +120,7 @@ class OTPService {
       }
 
       // OTP is valid - remove it from Redis
-      console.log(`${LOG_MESSAGES.OTP_VERIFIED}: ${normalizedPhone}`);
+      logger.info(`${LOG_MESSAGES.OTP_VERIFIED}: ${normalizedPhone}`);
       await this.removeOTPFromRedis(normalizedPhone);
       
       // Get customer data if exists
@@ -135,7 +136,7 @@ class OTPService {
       };
 
     } catch (error) {
-      console.error(`${LOG_MESSAGES.ERROR_OCCURRED} in verifyOTP:`, error);
+      logger.error(`${LOG_MESSAGES.ERROR_OCCURRED} in verifyOTP:`, error);
       throw this.handleOTPError(error);
     }
   }
@@ -147,7 +148,7 @@ class OTPService {
    */
   async resendOTP(phoneNumber) {
     try {
-      console.log(`${LOG_MESSAGES.OTP_RESEND_REQUEST}: ${phoneNumber}`);
+      logger.info(`${LOG_MESSAGES.OTP_RESEND_REQUEST}: ${phoneNumber}`);
 
       // Validate phone number
       const phoneValidation = this.validatePhoneNumber(phoneNumber);
@@ -158,7 +159,7 @@ class OTPService {
       const normalizedPhone = phoneValidation.normalizedNumber;
 
       // Check if there's an existing OTP and rate limiting
-      console.log(LOG_MESSAGES.CHECKING_EXISTING_OTP);
+      logger.info(LOG_MESSAGES.CHECKING_EXISTING_OTP);
       const canResend = await this.checkResendEligibility(normalizedPhone);
       
       if (!canResend.allowed) {
@@ -177,7 +178,7 @@ class OTPService {
       return await this.sendOTP(normalizedPhone);
 
     } catch (error) {
-      console.error(`${LOG_MESSAGES.ERROR_OCCURRED} in resendOTP:`, error);
+      logger.error(`${LOG_MESSAGES.ERROR_OCCURRED} in resendOTP:`, error);
       throw this.handleOTPError(error);
     }
   }
@@ -257,7 +258,7 @@ class OTPService {
         error: result.error
       };
     } catch (error) {
-      console.error('Error checking customer existence:', error);
+      logger.error('Error checking customer existence:', error);
       return {
         exists: false,
         customer: null,
@@ -272,7 +273,7 @@ class OTPService {
    * @param {object} otpData - OTP data to store
    */
   async storeOTPInRedis(phoneNumber, otpData) {
-    console.log(LOG_MESSAGES.STORING_REDIS);
+    logger.info(LOG_MESSAGES.STORING_REDIS);
     const redisKey = otpGenerator.generateRedisKey(phoneNumber);
     const expirySeconds = otpData.expiryMinutes * 60;
     await redisClient.set(redisKey, otpData, expirySeconds);
@@ -303,7 +304,7 @@ class OTPService {
    * @param {object} otpData - OTP data
    */
   async sendOTPSMS(phoneNumber, otpData) {
-    console.log(LOG_MESSAGES.SENDING_SMS);
+    logger.info(LOG_MESSAGES.SENDING_SMS);
     const smsContent = SMS_CONFIG.OTP_TEMPLATE
       .replace('{otp}', otpData.otp)
       .replace('{expiryMinutes}', otpData.expiryMinutes);
@@ -388,7 +389,7 @@ class OTPService {
     };
     
     if (customerData) {
-      console.log('📧 Customer data found, including credentials in response');
+      logger.info('Customer data found, including credentials in response');
       responseData.customer = {
         email: customerData.email,
         password: customerData.plainPassword,

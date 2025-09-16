@@ -82,17 +82,17 @@ const SMS_CONFIG = {
 
 // Log Messages
 const LOG_MESSAGES = {
-  OTP_REQUEST: '📱 OTP request for phone',
-  CHECKING_CUSTOMER: '🔍 Checking customer existence in Shopify',
-  GENERATING_OTP: '🔐 Generating OTP',
-  STORING_REDIS: '💾 Storing OTP in Redis',
-  SENDING_SMS: '📨 Sending OTP via SMS',
-  OTP_VERIFICATION: '🔍 OTP verification request for phone',
-  RETRIEVING_OTP: '🔍 Retrieving OTP from Redis',
-  OTP_VERIFIED: '✅ OTP verified successfully',
-  OTP_RESEND_REQUEST: '🔄 OTP resend request for phone',
-  CHECKING_EXISTING_OTP: '🔍 Checking existing OTP',
-  ERROR_OCCURRED: '❌ Error occurred'
+  OTP_REQUEST: 'OTP request for phone',
+  CHECKING_CUSTOMER: 'Checking customer existence in Shopify',
+  GENERATING_OTP: 'Generating OTP',
+  STORING_REDIS: 'Storing OTP in Redis',
+  SENDING_SMS: 'Sending OTP via SMS',
+  OTP_VERIFICATION: 'OTP verification request for phone',
+  RETRIEVING_OTP: 'Retrieving OTP from Redis',
+  OTP_VERIFIED: 'OTP verified successfully',
+  OTP_RESEND_REQUEST: 'OTP resend request for phone',
+  CHECKING_EXISTING_OTP: 'Checking existing OTP',
+  ERROR_OCCURRED: 'Error occurred'
 };
 
 // Validation Rules

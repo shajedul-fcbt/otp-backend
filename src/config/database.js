@@ -1,5 +1,6 @@
 const redis = require('redis');
 const config = require('./environment');
+const logger = require('./logger');
 
 class RedisClient {
   constructor() {
@@ -30,20 +31,20 @@ class RedisClient {
 
       await this.client.connect();
       this.isConnected = true;
-      console.log('✅ Redis connected successfully');
+      logger.info('Redis connected successfully');
 
       this.client.on('error', (err) => {
-        console.error('❌ Redis Client Error:', err);
+        logger.error('ERROR: Redis Client Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('disconnect', () => {
-        console.log('🔌 Redis disconnected');
+        logger.info('Redis disconnected');
         this.isConnected = false;
       });
 
     } catch (error) {
-      console.error('❌ Redis connection failed:', error);
+      logger.error('ERROR: Redis connection failed:', error);
       this.isConnected = false;
       throw error;
     }
@@ -53,7 +54,7 @@ class RedisClient {
     if (this.client) {
       await this.client.disconnect();
       this.isConnected = false;
-      console.log('🔌 Redis disconnected');
+      logger.info('Redis disconnected');
     }
   }
 
@@ -74,7 +75,7 @@ class RedisClient {
       }
       return true;
     } catch (error) {
-      console.error('Redis SET error:', error);
+      logger.error('ERROR: Redis SET error:', error);
       throw error;
     }
   }
@@ -85,7 +86,7 @@ class RedisClient {
       const value = await client.get(key);
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error('Redis GET error:', error);
+      logger.error('ERROR: Redis GET error:', error);
       throw error;
     }
   }
@@ -96,7 +97,7 @@ class RedisClient {
       const result = await client.del(key);
       return result > 0;
     } catch (error) {
-      console.error('Redis DELETE error:', error);
+      logger.error('ERROR: Redis DELETE error:', error);
       throw error;
     }
   }
@@ -107,7 +108,7 @@ class RedisClient {
       const result = await client.exists(key);
       return result === 1;
     } catch (error) {
-      console.error('Redis EXISTS error:', error);
+      logger.error('ERROR: Redis EXISTS error:', error);
       throw error;
     }
   }

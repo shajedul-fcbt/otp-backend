@@ -3,6 +3,7 @@
  */
 
 const { ERROR_MESSAGES, HTTP_STATUS } = require('../constants/customerConstants');
+const logger = require('../config/logger');
 
 class ErrorHandler {
   /**
@@ -37,7 +38,7 @@ class ErrorHandler {
    * @returns {object} Error response
    */
   static handleShopifyError(error) {
-    console.error('Shopify service error:', error);
+    logger.error('Shopify service error:', error);
     
     if (error.message.includes('Shopify')) {
       return this.createErrorResponse(
@@ -61,7 +62,7 @@ class ErrorHandler {
    * @returns {object} Error response
    */
   static handleDatabaseError(error) {
-    console.error('Database error:', error);
+    logger.error('Database error:', error);
     
     if (error.message.includes('Redis')) {
       return this.createErrorResponse(
@@ -110,7 +111,7 @@ class ErrorHandler {
    * @returns {object} Error response
    */
   static handleServerError(error, context = 'Unknown') {
-    console.error(`Server error in ${context}:`, error);
+    logger.error(`Server error in ${context}:`, error);
     
     const isDevelopment = process.env.NODE_ENV === 'development';
     

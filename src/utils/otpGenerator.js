@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const logger = require('../config/logger');
 const config = require('../config/environment');
 
 class OTPGenerator {
@@ -54,7 +55,7 @@ class OTPGenerator {
         isValid: true
       };
     } catch (error) {
-      console.error('Error generating OTP:', error);
+      logger.error('Error generating OTP:', error);
       throw new Error('Failed to generate OTP');
     }
   }
@@ -125,7 +126,7 @@ class OTPGenerator {
         phoneNumber: phoneNumber
       };
     } catch (error) {
-      console.error('Error verifying OTP:', error);
+      logger.error('Error verifying OTP:', error);
       return {
         isValid: false,
         message: 'Error occurred during OTP verification',

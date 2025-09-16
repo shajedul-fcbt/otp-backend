@@ -2,6 +2,7 @@
  * Centralized logging utility
  */
 
+const logger = require('../config/logger');
 const { LOG_MESSAGES } = require('../constants/customerConstants');
 
 class Logger {
@@ -11,7 +12,7 @@ class Logger {
    * @param {string} email - Customer email
    */
   static logCustomerSignupRequest(phoneNumber, email) {
-    console.log(`${LOG_MESSAGES.CUSTOMER_SIGNUP_REQUEST}: ${phoneNumber}, ${email}`);
+    logger.info(`${LOG_MESSAGES.CUSTOMER_SIGNUP_REQUEST}: ${phoneNumber}, ${email}`);
   }
 
   /**
@@ -19,28 +20,28 @@ class Logger {
    * @param {string} identifier - Phone number or email being checked
    */
   static logCheckingCustomerExists(identifier) {
-    console.log(`${LOG_MESSAGES.CHECKING_EXISTING_CUSTOMER}: ${identifier}`);
+    logger.info(`${LOG_MESSAGES.CHECKING_EXISTING_CUSTOMER}: ${identifier}`);
   }
 
   /**
    * Logs password generation
    */
   static logGeneratingPassword() {
-    console.log(LOG_MESSAGES.GENERATING_PASSWORD);
+    logger.info(LOG_MESSAGES.GENERATING_PASSWORD);
   }
 
   /**
    * Logs Shopify customer creation
    */
   static logCreatingShopifyCustomer() {
-    console.log(LOG_MESSAGES.CREATING_SHOPIFY_CUSTOMER);
+    logger.info(LOG_MESSAGES.CREATING_SHOPIFY_CUSTOMER);
   }
 
   /**
    * Logs Redis data storage
    */
   static logStoringRedisData() {
-    console.log(LOG_MESSAGES.STORING_REDIS_DATA);
+    logger.info(LOG_MESSAGES.STORING_REDIS_DATA);
   }
 
   /**
@@ -48,7 +49,7 @@ class Logger {
    * @param {string} customerId - Created customer ID
    */
   static logCustomerCreatedSuccess(customerId) {
-    console.log(`${LOG_MESSAGES.CUSTOMER_CREATED_SUCCESS}: ${customerId}`);
+    logger.info(`${LOG_MESSAGES.CUSTOMER_CREATED_SUCCESS}: ${customerId}`);
   }
 
   /**
@@ -56,7 +57,7 @@ class Logger {
    * @param {string} email - Customer email
    */
   static logCustomerFound(email) {
-    console.log(`${LOG_MESSAGES.CUSTOMER_FOUND}: ${email}`);
+    logger.info(`${LOG_MESSAGES.CUSTOMER_FOUND}: ${email}`);
   }
 
   /**
@@ -64,7 +65,7 @@ class Logger {
    * @param {string} phoneNumber - Phone number that was searched
    */
   static logCustomerNotFound(phoneNumber) {
-    console.log(`${LOG_MESSAGES.CUSTOMER_NOT_FOUND}: ${phoneNumber}`);
+    logger.info(`${LOG_MESSAGES.CUSTOMER_NOT_FOUND}: ${phoneNumber}`);
   }
 
   /**
@@ -73,7 +74,7 @@ class Logger {
    * @param {Error} error - Error object
    */
   static logError(context, error) {
-    console.error(`${LOG_MESSAGES.ERROR_OCCURRED} in ${context}:`, error);
+    logger.error(`${LOG_MESSAGES.ERROR_OCCURRED} in ${context}:`, error);
   }
 
   /**
@@ -83,9 +84,9 @@ class Logger {
    */
   static logInfo(message, data = null) {
     if (data) {
-      console.log(message, data);
+      logger.info(message, data);
     } else {
-      console.log(message);
+      logger.info(message);
     }
   }
 
@@ -96,9 +97,9 @@ class Logger {
    */
   static logWarning(message, data = null) {
     if (data) {
-      console.warn(`⚠️ ${message}`, data);
+      logger.warn(`WARNING: ${message}`, data);
     } else {
-      console.warn(`⚠️ ${message}`);
+      logger.warn(`WARNING: ${message}`);
     }
   }
 }

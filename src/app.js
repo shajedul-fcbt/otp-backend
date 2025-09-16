@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const config = require('./config/environment');
+const logger = require('./config/logger');
 
 // Import middleware
 const { generalLimiter, swaggerLimiter } = require('./middlewares/rateLimiter');
@@ -71,7 +72,7 @@ app.use((req, res, next) => {
   const url = req.url;
   const ip = req.ip || req.connection.remoteAddress;
   
-  console.log(`${timestamp} - ${method} ${url} - IP: ${ip}`);
+  logger.http(`${timestamp} - ${method} ${url} - IP: ${ip}`);
   
   // Log request body for debugging (exclude sensitive data)
   if (['POST', 'PUT', 'PATCH'].includes(method) && config.logging.enableRequestLogging && config.server.isDevelopment) {
@@ -81,7 +82,7 @@ app.use((req, res, next) => {
         if (logBody[field]) logBody[field] = '***';
       });
     }
-    console.log('Request Body:', logBody);
+    logger.debug('Request Body:', logBody);
   }
   
   next();
@@ -196,7 +197,7 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((error, req, res, next) => {
-  console.error('❌ Global Error Handler:', error);
+  logger.error('ERROR: Global Error Handler:', error);
   
   // CORS errors
   if (error.message && error.message.includes('CORS')) {
@@ -238,51 +239,51 @@ app.use((error, req, res, next) => {
 async function startServer() {
   try {
     // Connect to Redis
-    console.log('🔌 Connecting to Redis...');
+    logger.info('Connecting to Redis...');
     await redisClient.connect();
     
     // Test Shopify connection (optional)
-    console.log('🏪 Testing Shopify connection...');
+    logger.info('Testing Shopify connection...');
     const shopifyTest = await shopifyService.testConnection();
     if (shopifyTest.success) {
-      console.log('✅ Shopify connection successful');
+      logger.info('Shopify connection successful');
     } else {
-      console.warn('⚠️ Shopify connection failed:', shopifyTest.message);
-      console.warn('⚠️ API will continue without Shopify integration');
+      logger.warn('WARNING: Shopify connection failed:', shopifyTest.message);
+      logger.warn('WARNING: API will continue without Shopify integration');
     }
     
     // Start the server
     const server = app.listen(PORT, () => {
-      console.log('🚀 ===================================');
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🚀 Environment: ${config.server.nodeEnv}`);
-      console.log(`🚀 API Documentation: http://localhost:${PORT}/api-docs`);
-      console.log(`🚀 Health Check: http://localhost:${PORT}/health`);
-      console.log(`🚀 API Status: http://localhost:${PORT}/api/status`);
-      console.log('🚀 ===================================');
+      logger.info('===================================');
+      logger.info(`Server running on port ${PORT}`);
+      logger.info(`Environment: ${config.server.nodeEnv}`);
+      logger.info(`API Documentation: http://localhost:${PORT}/api-docs`);
+      logger.info(`Health Check: http://localhost:${PORT}/health`);
+      logger.info(`API Status: http://localhost:${PORT}/api/status`);
+      logger.info('===================================');
     });
     
     // Graceful shutdown handling
     process.on('SIGTERM', async () => {
-      console.log('🛑 SIGTERM received. Shutting down gracefully...');
+      logger.info('SIGTERM received. Shutting down gracefully...');
       server.close(async () => {
         await redisClient.disconnect();
-        console.log('👋 Server closed. Goodbye!');
+        logger.info('Server closed. Goodbye!');
         process.exit(0);
       });
     });
     
     process.on('SIGINT', async () => {
-      console.log('🛑 SIGINT received. Shutting down gracefully...');
+      logger.info('SIGINT received. Shutting down gracefully...');
       server.close(async () => {
         await redisClient.disconnect();
-        console.log('👋 Server closed. Goodbye!');
+        logger.info('Server closed. Goodbye!');
         process.exit(0);
       });
     });
     
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error('ERROR: Failed to start server:', error);
     process.exit(1);
   }
 }

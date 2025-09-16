@@ -4,6 +4,7 @@
  */
 
 require('dotenv').config();
+const logger = require('./logger');
 
 class EnvironmentConfig {
   constructor() {
@@ -254,8 +255,8 @@ class EnvironmentConfig {
     const missingVars = requiredVars.filter(varName => !process.env[varName]);
     
     if (missingVars.length > 0) {
-      console.error('❌ Missing required environment variables:', missingVars.join(', '));
-      console.error('Please check your .env file and ensure all required variables are set.');
+      logger.error('ERROR: Missing required environment variables:', missingVars.join(', '));
+      logger.error('Please check your .env file and ensure all required variables are set.');
       process.exit(1);
     }
   }

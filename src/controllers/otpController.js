@@ -1,6 +1,8 @@
 const otpService = require('../services/otpService');
 const InputSanitizer = require('../utils/inputSanitizer');
 const { HTTP_STATUS, ERROR_MESSAGES } = require('../constants/otpConstants');
+const logger = require('../config/logger');
+const config = require('../config/environment');
 
 class OTPController {
   /**
@@ -28,13 +30,13 @@ class OTPController {
       
       // Log OTP for development (remove in production)
       if (config.server.isDevelopment && result.data) {
-        console.log(`🔑 Generated OTP for ${phoneNumber}: [HIDDEN]`);
+        logger.debug(`🔑 Generated OTP for ${phoneNumber}: [HIDDEN]`);
       }
       
       res.status(HTTP_STATUS.OK).json(result);
 
     } catch (error) {
-      console.error('❌ Error in sendOTP:', error);
+      logger.error('ERROR: Error in sendOTP:', error);
       
       const safeMessage = InputSanitizer.createSafeErrorMessage(error, config.server.isDevelopment);
       
@@ -101,7 +103,7 @@ class OTPController {
       }
 
     } catch (error) {
-      console.error('❌ Error in verifyOTP:', error);
+      logger.error('ERROR: Error in verifyOTP:', error);
       
       const safeMessage = InputSanitizer.createSafeErrorMessage(error, config.server.isDevelopment);
       
@@ -160,7 +162,7 @@ class OTPController {
       }
 
     } catch (error) {
-      console.error('❌ Error in resendOTP:', error);
+      logger.error('ERROR: Error in resendOTP:', error);
       
       const safeMessage = InputSanitizer.createSafeErrorMessage(error, config.server.isDevelopment);
       
