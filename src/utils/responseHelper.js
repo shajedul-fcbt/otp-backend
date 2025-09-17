@@ -1,8 +1,18 @@
 /**
  * Standardized response utilities
+ * Provides consistent HTTP responses across the application
  */
 
 const { SUCCESS_MESSAGES, HTTP_STATUS } = require('../constants/customerConstants');
+
+// Response structure constants
+const RESPONSE_STRUCTURE = {
+  SUCCESS: 'success',
+  MESSAGE: 'message', 
+  DATA: 'data',
+  TIMESTAMP: 'timestamp',
+  ERRORS: 'errors'
+};
 
 class ResponseHelper {
   /**
@@ -14,17 +24,31 @@ class ResponseHelper {
    * @returns {object} Express response
    */
   static success(res, message, data = null, statusCode = HTTP_STATUS.OK) {
+    // Input validation
+    if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+      throw new Error('Invalid Express response object provided');
+    }
+    
+    if (!message || typeof message !== 'string') {
+      message = 'Operation completed successfully';
+    }
+    
+    // Validate status code
+    const validStatusCode = Number.isInteger(statusCode) && statusCode >= 200 && statusCode < 300
+      ? statusCode
+      : HTTP_STATUS.OK;
+
     const response = {
-      success: true,
-      message,
-      timestamp: new Date().toISOString()
+      [RESPONSE_STRUCTURE.SUCCESS]: true,
+      [RESPONSE_STRUCTURE.MESSAGE]: message.trim(),
+      [RESPONSE_STRUCTURE.TIMESTAMP]: new Date().toISOString()
     };
 
-    if (data !== null) {
-      response.data = data;
+    if (data !== null && data !== undefined) {
+      response[RESPONSE_STRUCTURE.DATA] = data;
     }
 
-    return res.status(statusCode).json(response);
+    return res.status(validStatusCode).json(response);
   }
 
   /**
@@ -81,11 +105,22 @@ class ResponseHelper {
    * @returns {object} Express response
    */
   static validationError(res, message, errors = []) {
+    // Input validation
+    if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+      throw new Error('Invalid Express response object provided');
+    }
+    
+    const safeMessage = message && typeof message === 'string' 
+      ? message.trim() 
+      : 'Validation error occurred';
+    
+    const safeErrors = Array.isArray(errors) ? errors : [];
+
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
-      success: false,
-      message,
-      errors,
-      timestamp: new Date().toISOString()
+      [RESPONSE_STRUCTURE.SUCCESS]: false,
+      [RESPONSE_STRUCTURE.MESSAGE]: safeMessage,
+      [RESPONSE_STRUCTURE.ERRORS]: safeErrors,
+      [RESPONSE_STRUCTURE.TIMESTAMP]: new Date().toISOString()
     });
   }
 
@@ -97,14 +132,23 @@ class ResponseHelper {
    * @returns {object} Express response
    */
   static conflict(res, message, data = null) {
+    // Input validation
+    if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+      throw new Error('Invalid Express response object provided');
+    }
+    
+    const safeMessage = message && typeof message === 'string'
+      ? message.trim()
+      : 'Resource conflict occurred';
+
     const response = {
-      success: false,
-      message,
-      timestamp: new Date().toISOString()
+      [RESPONSE_STRUCTURE.SUCCESS]: false,
+      [RESPONSE_STRUCTURE.MESSAGE]: safeMessage,
+      [RESPONSE_STRUCTURE.TIMESTAMP]: new Date().toISOString()
     };
 
-    if (data) {
-      response.data = data;
+    if (data !== null && data !== undefined) {
+      response[RESPONSE_STRUCTURE.DATA] = data;
     }
 
     return res.status(HTTP_STATUS.CONFLICT).json(response);

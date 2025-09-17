@@ -1,9 +1,19 @@
 /**
  * Centralized error handling utilities
+ * Provides consistent error responses and logging across the application
  */
 
 const { ERROR_MESSAGES, HTTP_STATUS } = require('../constants/customerConstants');
 const logger = require('../config/logger');
+
+// Error type constants for better maintainability
+const ERROR_TYPES = {
+  SHOPIFY: 'SHOPIFY_ERROR',
+  DATABASE: 'DATABASE_ERROR',
+  VALIDATION: 'VALIDATION_ERROR',
+  INTERNAL: 'INTERNAL_SERVER_ERROR',
+  CUSTOMER_EXISTS: 'CUSTOMER_EXISTS'
+};
 
 class ErrorHandler {
   /**
@@ -15,17 +25,26 @@ class ErrorHandler {
    * @returns {object} Standardized error response
    */
   static createErrorResponse(message, statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR, errorCode = null, details = null) {
+    // Input validation
+    if (!message || typeof message !== 'string') {
+      throw new Error('Error message is required and must be a string');
+    }
+    
+    if (!Number.isInteger(statusCode) || statusCode < 100 || statusCode >= 600) {
+      statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR;
+    }
+
     const response = {
       success: false,
-      message,
+      message: message.trim(),
       timestamp: new Date().toISOString()
     };
 
-    if (errorCode) {
-      response.errorCode = errorCode;
+    if (errorCode && typeof errorCode === 'string') {
+      response.errorCode = errorCode.trim();
     }
 
-    if (details) {
+    if (details !== null && details !== undefined) {
       response.details = details;
     }
 
@@ -38,21 +57,29 @@ class ErrorHandler {
    * @returns {object} Error response
    */
   static handleShopifyError(error) {
-    logger.error('Shopify service error:', error);
-    
-    if (error.message.includes('Shopify')) {
+    if (!error) {
       return this.createErrorResponse(
         ERROR_MESSAGES.EXTERNAL_SERVICE_ERROR,
         HTTP_STATUS.SERVICE_UNAVAILABLE,
-        'SHOPIFY_ERROR',
-        'Shopify integration error'
+        ERROR_TYPES.SHOPIFY
       );
     }
 
+    // Log error with context
+    logger.error('Shopify service error:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    
+    const errorMessage = error.message || '';
+    const isShopifyError = errorMessage.toLowerCase().includes('shopify');
+    
     return this.createErrorResponse(
       ERROR_MESSAGES.EXTERNAL_SERVICE_ERROR,
       HTTP_STATUS.SERVICE_UNAVAILABLE,
-      'EXTERNAL_SERVICE_ERROR'
+      isShopifyError ? ERROR_TYPES.SHOPIFY : 'EXTERNAL_SERVICE_ERROR',
+      process.env.NODE_ENV === 'development' ? errorMessage : undefined
     );
   }
 
@@ -62,21 +89,31 @@ class ErrorHandler {
    * @returns {object} Error response
    */
   static handleDatabaseError(error) {
-    logger.error('Database error:', error);
-    
-    if (error.message.includes('Redis')) {
+    if (!error) {
       return this.createErrorResponse(
         ERROR_MESSAGES.SERVICE_UNAVAILABLE,
         HTTP_STATUS.SERVICE_UNAVAILABLE,
-        'DATABASE_ERROR',
-        'Database connection error'
+        ERROR_TYPES.DATABASE
       );
     }
 
+    // Log error with structured data
+    logger.error('Database error:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    
+    const errorMessage = error.message || '';
+    const isRedisError = errorMessage.toLowerCase().includes('redis');
+    const isDatabaseError = errorMessage.toLowerCase().includes('database');
+    
     return this.createErrorResponse(
       ERROR_MESSAGES.SERVICE_UNAVAILABLE,
       HTTP_STATUS.SERVICE_UNAVAILABLE,
-      'DATABASE_ERROR'
+      ERROR_TYPES.DATABASE,
+      process.env.NODE_ENV === 'development' && (isRedisError || isDatabaseError) ? errorMessage : undefined
     );
   }
 
@@ -84,20 +121,25 @@ class ErrorHandler {
    * Handles validation errors
    * @param {string} message - Validation error message
    * @param {string} field - Field that failed validation
+   * @param {any} value - The invalid value (optional)
    * @returns {object} Error response
    */
-  static handleValidationError(message, field = null) {
+  static handleValidationError(message, field = null, value = null) {
+    if (!message || typeof message !== 'string') {
+      message = 'Validation error occurred';
+    }
+
     const errorResponse = this.createErrorResponse(
       message,
       HTTP_STATUS.BAD_REQUEST,
-      'VALIDATION_ERROR'
+      ERROR_TYPES.VALIDATION
     );
 
-    if (field) {
+    if (field && typeof field === 'string') {
       errorResponse.response.errors = [{
-        field,
-        message,
-        value: null
+        field: field.trim(),
+        message: message.trim(),
+        value: process.env.NODE_ENV === 'development' ? value : null
       }];
     }
 
@@ -111,15 +153,28 @@ class ErrorHandler {
    * @returns {object} Error response
    */
   static handleServerError(error, context = 'Unknown') {
-    logger.error(`Server error in ${context}:`, error);
-    
+    const errorContext = typeof context === 'string' ? context.trim() : 'Unknown';
     const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    // Enhanced error logging with structured data
+    const logData = {
+      context: errorContext,
+      timestamp: new Date().toISOString()
+    };
+
+    if (error) {
+      logData.message = error.message;
+      logData.name = error.name;
+      logData.stack = error.stack;
+    }
+
+    logger.error(`Server error in ${errorContext}:`, logData);
     
     return this.createErrorResponse(
       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      'INTERNAL_SERVER_ERROR',
-      isDevelopment ? error.message : undefined
+      ERROR_TYPES.INTERNAL,
+      isDevelopment && error ? error.message : undefined
     );
   }
 
@@ -130,16 +185,28 @@ class ErrorHandler {
    * @returns {object} Error response
    */
   static handleCustomerExistsError(type, value) {
+    // Validate input parameters
+    if (!type || !['phone', 'email'].includes(type)) {
+      type = 'phone'; // Default fallback
+    }
+    
+    if (!value || typeof value !== 'string') {
+      value = 'unknown'; // Safe fallback
+    }
+
     const message = type === 'phone' 
       ? ERROR_MESSAGES.CUSTOMER_ALREADY_EXISTS_PHONE
       : ERROR_MESSAGES.CUSTOMER_ALREADY_EXISTS_EMAIL;
 
+    // Don't expose sensitive values in production
+    const safeValue = process.env.NODE_ENV === 'development' ? value : '[HIDDEN]';
+
     return this.createErrorResponse(
       message,
       HTTP_STATUS.CONFLICT,
-      'CUSTOMER_EXISTS',
+      ERROR_TYPES.CUSTOMER_EXISTS,
       {
-        [type]: value,
+        [type]: safeValue,
         customerExists: true
       }
     );
@@ -149,10 +216,35 @@ class ErrorHandler {
    * Sends error response to client
    * @param {object} res - Express response object
    * @param {object} errorResponse - Error response object
+   * @returns {object} Express response
    */
   static sendErrorResponse(res, errorResponse) {
+    // Validate inputs
+    if (!res || typeof res.status !== 'function' || typeof res.json !== 'function') {
+      throw new Error('Invalid Express response object provided');
+    }
+
+    if (!errorResponse || typeof errorResponse !== 'object') {
+      // Fallback error response
+      return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     const { response, statusCode } = errorResponse;
-    res.status(statusCode).json(response);
+    
+    // Validate status code
+    const validStatusCode = Number.isInteger(statusCode) && statusCode >= 100 && statusCode < 600 
+      ? statusCode 
+      : HTTP_STATUS.INTERNAL_SERVER_ERROR;
+
+    return res.status(validStatusCode).json(response || {
+      success: false,
+      message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+      timestamp: new Date().toISOString()
+    });
   }
 }
 

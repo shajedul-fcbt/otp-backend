@@ -39,18 +39,30 @@ class InputSanitizer {
    * @param {number} maxLength - Maximum allowed length
    * @returns {string} Sanitized text
    */
-  static sanitizeText(text, maxLength = 1000) {
+  static sanitizeText(text, maxLength = MAX_LENGTHS.TEXT) {
     if (!text || typeof text !== 'string') {
       return '';
     }
     
-    // Remove potentially dangerous characters and trim
-    return text
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
-      .replace(/<[^>]+>/g, '') // Remove HTML tags
-      .replace(/[<>\"'&]/g, '') // Remove potentially dangerous characters
+    // Early return for empty or oversized input
+    const trimmed = text.trim();
+    if (trimmed.length === 0) {
+      return '';
+    }
+    
+    // Validate maxLength parameter
+    const validMaxLength = Number.isInteger(maxLength) && maxLength > 0 
+      ? Math.min(maxLength, MAX_LENGTHS.TEXT) 
+      : MAX_LENGTHS.TEXT;
+    
+    // Remove potentially dangerous content using cached regex patterns
+    return trimmed
+      .replace(REGEX_PATTERNS.SCRIPT_TAGS, '') // Remove script tags
+      .replace(REGEX_PATTERNS.HTML_TAGS, '') // Remove HTML tags
+      .replace(REGEX_PATTERNS.DANGEROUS_CHARS, '') // Remove dangerous characters
+      .replace(REGEX_PATTERNS.EXCESSIVE_WHITESPACE, ' ') // Normalize whitespace
       .trim()
-      .substring(0, maxLength);
+      .substring(0, validMaxLength);
   }
 
   /**
@@ -127,30 +139,63 @@ class InputSanitizer {
   /**
    * Sanitizes request body to prevent XSS and injection attacks
    * @param {object} body - Request body object
+   * @param {number} maxDepth - Maximum recursion depth to prevent stack overflow
    * @returns {object} Sanitized request body
    */
-  static sanitizeRequestBody(body) {
-    if (!body || typeof body !== 'object') {
+  static sanitizeRequestBody(body, maxDepth = 3) {
+    if (!body || typeof body !== 'object' || body === null) {
+      return {};
+    }
+
+    // Prevent infinite recursion and memory leaks
+    if (maxDepth <= 0) {
       return {};
     }
 
     const sanitized = {};
+    const entries = Object.entries(body);
     
-    for (const [key, value] of Object.entries(body)) {
+    // Limit the number of properties to prevent DoS attacks
+    const maxProperties = 50;
+    const limitedEntries = entries.slice(0, maxProperties);
+    
+    for (const [key, value] of limitedEntries) {
+      // Sanitize the key itself
+      const sanitizedKey = this.sanitizeText(key, 50);
+      if (!sanitizedKey) continue;
+      
       if (typeof value === 'string') {
         // Apply different sanitization based on field type
-        if (key.toLowerCase().includes('phone')) {
-          sanitized[key] = this.sanitizePhoneNumber(value);
-        } else if (key.toLowerCase().includes('otp')) {
-          sanitized[key] = this.sanitizeOTP(value);
+        const lowerKey = sanitizedKey.toLowerCase();
+        if (lowerKey.includes('phone')) {
+          sanitized[sanitizedKey] = this.sanitizePhoneNumber(value);
+        } else if (lowerKey.includes('otp')) {
+          sanitized[sanitizedKey] = this.sanitizeOTP(value);
+        } else if (lowerKey.includes('email')) {
+          sanitized[sanitizedKey] = this.sanitizeText(value, MAX_LENGTHS.EMAIL);
+        } else if (lowerKey.includes('name')) {
+          sanitized[sanitizedKey] = this.sanitizeText(value, MAX_LENGTHS.NAME);
         } else {
-          sanitized[key] = this.sanitizeText(value);
+          sanitized[sanitizedKey] = this.sanitizeText(value);
         }
-      } else if (typeof value === 'object' && value !== null) {
-        sanitized[key] = this.sanitizeRequestBody(value);
-      } else {
-        sanitized[key] = value;
+      } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        // Recursive sanitization with depth limit
+        sanitized[sanitizedKey] = this.sanitizeRequestBody(value, maxDepth - 1);
+      } else if (Array.isArray(value)) {
+        // Handle arrays with size limit
+        const maxArrayLength = 20;
+        sanitized[sanitizedKey] = value.slice(0, maxArrayLength).map(item => {
+          if (typeof item === 'string') {
+            return this.sanitizeText(item);
+          } else if (typeof item === 'object' && item !== null) {
+            return this.sanitizeRequestBody(item, maxDepth - 1);
+          }
+          return item;
+        });
+      } else if (typeof value === 'number' || typeof value === 'boolean') {
+        sanitized[sanitizedKey] = value;
       }
+      // Skip other types (functions, symbols, etc.)
     }
 
     return sanitized;
@@ -207,21 +252,40 @@ class InputSanitizer {
    * @returns {string} Safe error message
    */
   static createSafeErrorMessage(error, isDevelopment = false) {
-    if (isDevelopment) {
-      return error.message || 'Unknown error occurred';
+    // Input validation
+    if (!error) {
+      return 'An error occurred while processing your request';
+    }
+
+    const errorMessage = error.message || '';
+    const isDev = Boolean(isDevelopment);
+    
+    if (isDev) {
+      // In development, return sanitized error message
+      return this.sanitizeText(errorMessage, 500) || 'Unknown error occurred';
     }
 
     // In production, return generic messages for security
-    if (error.message.includes('validation') || error.message.includes('Invalid')) {
+    const message = errorMessage.toLowerCase();
+    
+    if (message.includes('validation') || message.includes('invalid')) {
       return 'Invalid input provided';
     }
 
-    if (error.message.includes('Redis') || error.message.includes('Database')) {
+    if (message.includes('redis') || message.includes('database')) {
       return 'Service temporarily unavailable';
     }
 
-    if (error.message.includes('SMS')) {
+    if (message.includes('sms')) {
       return 'SMS service temporarily unavailable';
+    }
+
+    if (message.includes('network') || message.includes('timeout')) {
+      return 'Network error occurred';
+    }
+
+    if (message.includes('auth') || message.includes('permission')) {
+      return 'Access denied';
     }
 
     return 'An error occurred while processing your request';
