@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const config = require('./config/environment');
 const logger = require('./config/logger');
 
@@ -11,6 +12,7 @@ const { sanitizeInput, validateContentType, handleValidationError } = require('.
 // Import routes
 const otpRoutes = require('./routes/otpRoutes');
 const customerRoutes = require('./routes/customerRoutes');
+const healthRoutes = require('./routes/healthRoutes');
 
 // Import configuration
 const redisClient = require('./config/database');
@@ -60,6 +62,7 @@ app.options('/{*any}', cors(corsOptions));
 // ===== PARSING MIDDLEWARE =====
 app.use(express.json({ limit: config.api.maxRequestSize }));
 app.use(express.urlencoded({ extended: true, limit: config.api.maxRequestSize }));
+app.use(cookieParser());
 
 // ===== CUSTOM MIDDLEWARE =====
 app.use(sanitizeInput);           // Sanitize input to prevent XSS
@@ -88,16 +91,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// ===== HEALTH CHECK ENDPOINT =====
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Server is healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: config.server.nodeEnv
-  });
-});
+// ===== HEALTH CHECK ENDPOINTS =====
+app.use('/health', healthRoutes);
 
 // ===== API STATUS ENDPOINT =====
 app.get('/api/status', async (req, res) => {

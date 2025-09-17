@@ -215,7 +215,8 @@ class CustomerService {
    * @returns {object} Validation result
    */
   validatePhoneNumber(phoneNumber) {
-    const { BD_PHONE_REGEX, INTERNATIONAL_PREFIX, LOCAL_PREFIX } = require('../constants/customerConstants');
+    const { PHONE_VALIDATION } = require('../constants/customerConstants');
+    const { BD_PHONE_REGEX, INTERNATIONAL_PREFIX, LOCAL_PREFIX } = PHONE_VALIDATION;
     
     if (!phoneNumber) {
       return {

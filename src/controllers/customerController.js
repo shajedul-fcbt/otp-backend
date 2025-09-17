@@ -1,8 +1,7 @@
 const customerService = require('../services/customerService');
 const ErrorHandler = require('../utils/errorHandler');
 const ResponseHelper = require('../utils/responseHelper');
-const { validate } = require('../middlewares/validation');
-const { customerSignupSchema } = require('../middlewares/validation');
+const { validate, customerSignupSchema } = require('../middlewares/validation');
 const logger = require('../config/logger');
 
 class CustomerController {

@@ -261,54 +261,6 @@ class EnvironmentConfig {
     }
   }
 
-  /**
-   * Get configuration for a specific service
-   * @param {string} serviceName - Name of the service
-   * @returns {object} Service configuration
-   */
-  getServiceConfig(serviceName) {
-    const configs = {
-      server: this.server,
-      redis: this.redis,
-      shopify: this.shopify,
-      sms: this.sms,
-      otp: this.otp,
-      rateLimit: this.rateLimit,
-      security: this.security,
-      api: this.api,
-      logging: this.logging,
-      validation: this.validation,
-      database: this.database,
-      externalServices: this.externalServices
-    };
-
-    if (!configs[serviceName]) {
-      throw new Error(`Unknown service configuration: ${serviceName}`);
-    }
-
-    return configs[serviceName];
-  }
-
-  /**
-   * Get all configuration as a single object
-   * @returns {object} Complete configuration
-   */
-  getAllConfig() {
-    return {
-      server: this.server,
-      redis: this.redis,
-      shopify: this.shopify,
-      sms: this.sms,
-      otp: this.otp,
-      rateLimit: this.rateLimit,
-      security: this.security,
-      api: this.api,
-      logging: this.logging,
-      validation: this.validation,
-      database: this.database,
-      externalServices: this.externalServices
-    };
-  }
 
   /**
    * Check if configuration is valid

@@ -8,10 +8,10 @@ require('dotenv').config();
 
 // Rate limiting configuration based on environment
 const isDevelopment = process.env.NODE_ENV === 'development';
-const skipRateLimiting = isDevelopment && process.env.SKIP_OTP_RATE_LIMIT === 'true';
+const skipRateLimiting = isDevelopment; // Disable rate limiting in development
 
-// General API rate limit (relaxed for testing)
-const generalLimiter = rateLimit({
+// General API rate limit (disabled in development)
+const generalLimiter = skipRateLimiting ? (req, res, next) => next() : rateLimit({
   windowMs: 1000, // 1 second
   max: 500, // 500 requests per second for testing
   message: {
@@ -30,8 +30,8 @@ const generalLimiter = rateLimit({
   }
 });
 
-// Production-ready rate limit for OTP sending - prevents SMS bombing
-const otpSendLimiter = rateLimit({
+// Production-ready rate limit for OTP sending - prevents SMS bombing (disabled in development)
+const otpSendLimiter = skipRateLimiting ? (req, res, next) => next() : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3, // 3 OTP requests per 15 minutes per IP/phone
   message: {
@@ -58,8 +58,8 @@ const otpSendLimiter = rateLimit({
   }
 });
 
-// Production-ready rate limit for OTP verification - prevents brute force attacks
-const otpVerifyLimiter = rateLimit({
+// Production-ready rate limit for OTP verification - prevents brute force attacks (disabled in development)
+const otpVerifyLimiter = skipRateLimiting ? (req, res, next) => next() : rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
   max: 5, // 5 verification attempts per 10 minutes per phone/IP
   message: {
@@ -79,15 +79,11 @@ const otpVerifyLimiter = rateLimit({
   keyGenerator: (req) => {
     // Use phone number if available, otherwise fall back to IP
     return req.body?.phoneNumber || req.ip;
-  },
-  skip: (req) => {
-    // Skip rate limiting in development if needed
-    return skipRateLimiting;
   }
 });
 
-// Production-ready rate limit for customer signup - prevents abuse and spam accounts
-const signupLimiter = rateLimit({
+// Production-ready rate limit for customer signup - prevents abuse and spam accounts (disabled in development)
+const signupLimiter = skipRateLimiting ? (req, res, next) => next() : rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // 5 signup attempts per hour per IP
   message: {
@@ -107,15 +103,11 @@ const signupLimiter = rateLimit({
   keyGenerator: (req) => {
     // Use phone number if available, otherwise fall back to IP
     return req.body?.phoneNumber || req.ip;
-  },
-  skip: (req) => {
-    // Skip rate limiting in development if needed
-    return skipRateLimiting;
   }
 });
 
-// Relaxed rate limit for Swagger documentation (for testing)
-const swaggerLimiter = rateLimit({
+// Relaxed rate limit for Swagger documentation (disabled in development)
+const swaggerLimiter = skipRateLimiting ? (req, res, next) => next() : rateLimit({
   windowMs: 1000, // 1 second
   max: 500, // 500 requests per second for testing
   message: {
@@ -135,6 +127,11 @@ const createPhoneNumberLimiter = (windowMs, max, message) => {
   const limiters = new Map();
   
   return (req, res, next) => {
+    // Skip rate limiting in development
+    if (skipRateLimiting) {
+      return next();
+    }
+    
     const phoneNumber = req.body?.phoneNumber;
     
     if (!phoneNumber) {

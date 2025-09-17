@@ -6,13 +6,6 @@
 const logger = require('../config/logger');
 const { LOG_MESSAGES } = require('../constants/customerConstants');
 
-// Log level constants for better maintainability
-const LOG_LEVELS = {
-  ERROR: 'error',
-  WARN: 'warn',
-  INFO: 'info',
-  DEBUG: 'debug'
-};
 
 // Maximum data size for logging to prevent memory issues
 const MAX_LOG_DATA_SIZE = 1000;

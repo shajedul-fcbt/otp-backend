@@ -130,38 +130,6 @@ const generateOTPMessage = (otp, expiryMinutes = 5, brandName = 'Our Service') =
   return truncateSMSMessage(message);
 };
 
-/**
- * Generate welcome message for new customers
- * @param {string} customerName - Customer name
- * @param {string} temporaryPassword - Temporary password
- * @param {string} [brandName] - Optional brand name
- * @returns {string} Formatted welcome message
- */
-const generateWelcomeMessage = (customerName, temporaryPassword, brandName = 'Our Service') => {
-  return `Welcome to ${brandName}, ${customerName}! Your account has been created successfully. Your temporary password is: ${temporaryPassword}. Please log in and change your password immediately for security. Thank you for joining us!`;
-};
-
-/**
- * Generate password reset message
- * @param {string} resetCode - Password reset code
- * @param {number} expiryMinutes - Expiry time in minutes
- * @param {string} [brandName] - Optional brand name
- * @returns {string} Formatted password reset message
- */
-const generatePasswordResetMessage = (resetCode, expiryMinutes = 15, brandName = 'Our Service') => {
-  return `Your ${brandName} password reset code is: ${resetCode}. This code will expire in ${expiryMinutes} minutes. If you didn't request a password reset, please ignore this message.`;
-};
-
-/**
- * Generate order confirmation message
- * @param {string} orderNumber - Order number
- * @param {string} amount - Order amount
- * @param {string} [brandName] - Optional brand name
- * @returns {string} Formatted order confirmation message
- */
-const generateOrderConfirmationMessage = (orderNumber, amount, brandName = 'Our Service') => {
-  return `Thank you for your order! Order #${orderNumber} for ${amount} has been confirmed. You will receive updates about your order status. - ${brandName}`;
-};
 
 /**
  * Truncate SMS message to fit character limits
@@ -288,9 +256,6 @@ module.exports = {
   formatPhoneForSMS,
   validateSMSEligibility,
   generateOTPMessage,
-  generateWelcomeMessage,
-  generatePasswordResetMessage,
-  generateOrderConfirmationMessage,
   truncateSMSMessage,
   analyzeMessageEncoding,
   sanitizeSMSMessage,

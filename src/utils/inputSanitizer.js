@@ -4,6 +4,23 @@
 
 const { VALIDATION } = require('../constants/otpConstants');
 
+// Maximum length constants for input validation
+const MAX_LENGTHS = {
+  TEXT: 1000,
+  EMAIL: 254,
+  NAME: 100,
+  PHONE: 20,
+  OTP: 10
+};
+
+// Regex patterns for input sanitization
+const REGEX_PATTERNS = {
+  SCRIPT_TAGS: /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+  HTML_TAGS: /<[^>]+>/g,
+  DANGEROUS_CHARS: /[<>\"'&]/g,
+  EXCESSIVE_WHITESPACE: /\s+/g
+};
+
 class InputSanitizer {
   /**
    * Sanitizes phone number input
