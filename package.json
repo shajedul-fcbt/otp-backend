@@ -5,12 +5,7 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
-    "test": "node test.js",
-    "demo": "node demo.js",
-    "demo:quick": "node demo.js --quick",
-    "demo:health": "node demo.js --health",
-    "test:manual": "echo \"Start the server with 'npm run dev' then run 'npm test' in another terminal\""
+    "dev": "nodemon src/app.js"
   },
   "repository": {
     "type": "git",
@@ -25,19 +20,18 @@
   "dependencies": {
     "axios": "^1.7.7",
     "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "express-rate-limit": "^7.4.1",
-    "express-validator": "^7.2.0",
     "helmet": "^8.0.0",
     "joi": "^17.13.3",
     "redis": "^4.7.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "uuid": "^13.0.0",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

@@ -1,5 +1,6 @@
 const Joi = require('joi');
 const phoneValidator = require('../utils/phoneValidator');
+const logger = require('../config/logger');
 
 /**
  * Validation schemas using Joi
@@ -222,7 +223,7 @@ const sanitizeInput = (req, res, next) => {
   };
 
   const sanitizeObject = (obj) => {
-    console.log('obj', obj);
+    logger.debug('obj', obj);
     if (obj && typeof obj === 'object') {
       for (let key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {

@@ -1,7 +1,30 @@
 /**
  * SMS Utility Functions
  * Helper functions for SMS operations and formatting
+ * Optimized for performance and memory efficiency
  */
+
+// Cached regex patterns for better performance
+const REGEX_PATTERNS = {
+  CLEANUP: /[\s\-\+\(\)]/g,
+  BD_MOBILE: /^88(013|014|015|016|017|018|019)\d{8}$/,
+  NATIONAL_FORMAT: /^01[3-9]\d{8}$/,
+  HTML_TAGS: /<[^>]*>/g,
+  WHITESPACE: /\s+/g,
+  LINE_BREAKS: /[\r\n]+/g,
+  NON_ASCII: /[^\x00-\x7F]/
+};
+
+// Constants for limits and defaults
+const LIMITS = {
+  MAX_SMS_LENGTH: 1000,
+  MAX_SINGLE_SMS_ASCII: 160,
+  MAX_SINGLE_SMS_UNICODE: 70,
+  MAX_BRAND_NAME_LENGTH: 50,
+  MAX_CUSTOMER_NAME_LENGTH: 100,
+  MAX_ORDER_NUMBER_LENGTH: 50,
+  MAX_AMOUNT_LENGTH: 20
+};
 
 /**
  * Format phone number for SMS sending
@@ -10,10 +33,18 @@
  * @returns {string} Formatted phone number
  */
 const formatPhoneForSMS = (phoneNumber) => {
-  if (!phoneNumber) return '';
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return '';
+  }
   
-  // Remove any spaces, dashes, parentheses, plus signs
-  const cleaned = phoneNumber.replace(/[\s\-\+\(\)]/g, '');
+  // Early return for empty strings after trim
+  const trimmed = phoneNumber.trim();
+  if (trimmed.length === 0 || trimmed.length > 20) {
+    return '';
+  }
+  
+  // Remove spaces, dashes, parentheses, plus signs using cached regex
+  const cleaned = trimmed.replace(REGEX_PATTERNS.CLEANUP, '');
   
   // If it starts with 01, add country code
   if (cleaned.startsWith('01')) {
@@ -25,8 +56,8 @@ const formatPhoneForSMS = (phoneNumber) => {
     return cleaned;
   }
   
-  // If it's just numbers and 11 digits starting with 01, add 88
-  if (/^01[3-9]\d{8}$/.test(cleaned)) {
+  // If it's national format, add country code
+  if (REGEX_PATTERNS.NATIONAL_FORMAT.test(cleaned)) {
     return '88' + cleaned;
   }
   
@@ -39,12 +70,26 @@ const formatPhoneForSMS = (phoneNumber) => {
  * @returns {object} Validation result
  */
 const validateSMSEligibility = (phoneNumber) => {
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    return {
+      isEligible: false,
+      reason: 'Phone number is required and must be a string',
+      formattedNumber: ''
+    };
+  }
+  
   const formatted = formatPhoneForSMS(phoneNumber);
   
-  // Bangladesh mobile number pattern
-  const bangladeshMobilePattern = /^88(013|014|015|016|017|018|019)\d{8}$/;
+  if (!formatted) {
+    return {
+      isEligible: false,
+      reason: 'Unable to format phone number',
+      formattedNumber: ''
+    };
+  }
   
-  if (!bangladeshMobilePattern.test(formatted)) {
+  // Use cached regex pattern
+  if (!REGEX_PATTERNS.BD_MOBILE.test(formatted)) {
     return {
       isEligible: false,
       reason: 'Invalid Bangladesh mobile number format',
@@ -67,41 +112,24 @@ const validateSMSEligibility = (phoneNumber) => {
  * @returns {string} Formatted OTP message
  */
 const generateOTPMessage = (otp, expiryMinutes = 5, brandName = 'Our Service') => {
-  return `Your ${brandName} verification code is: ${otp}. This code will expire in ${expiryMinutes} minutes. Do not share this code with anyone. If you didn't request this code, please ignore this message.`;
+  // Input validation
+  if (!otp || typeof otp !== 'string' || !/^\d{4,8}$/.test(otp)) {
+    throw new Error('Invalid OTP code provided');
+  }
+  
+  const validExpiryMinutes = Number.isInteger(expiryMinutes) && expiryMinutes > 0 && expiryMinutes <= 60
+    ? expiryMinutes
+    : 5;
+  
+  const safeBrandName = brandName && typeof brandName === 'string'
+    ? sanitizeText(brandName.trim(), LIMITS.MAX_BRAND_NAME_LENGTH)
+    : 'Our Service';
+  
+  const message = `Your ${safeBrandName} verification code is: ${otp}. This code will expire in ${validExpiryMinutes} minutes. Do not share this code with anyone. If you didn't request this code, please ignore this message.`;
+  
+  return truncateSMSMessage(message);
 };
 
-/**
- * Generate welcome message for new customers
- * @param {string} customerName - Customer name
- * @param {string} temporaryPassword - Temporary password
- * @param {string} [brandName] - Optional brand name
- * @returns {string} Formatted welcome message
- */
-const generateWelcomeMessage = (customerName, temporaryPassword, brandName = 'Our Service') => {
-  return `Welcome to ${brandName}, ${customerName}! Your account has been created successfully. Your temporary password is: ${temporaryPassword}. Please log in and change your password immediately for security. Thank you for joining us!`;
-};
-
-/**
- * Generate password reset message
- * @param {string} resetCode - Password reset code
- * @param {number} expiryMinutes - Expiry time in minutes
- * @param {string} [brandName] - Optional brand name
- * @returns {string} Formatted password reset message
- */
-const generatePasswordResetMessage = (resetCode, expiryMinutes = 15, brandName = 'Our Service') => {
-  return `Your ${brandName} password reset code is: ${resetCode}. This code will expire in ${expiryMinutes} minutes. If you didn't request a password reset, please ignore this message.`;
-};
-
-/**
- * Generate order confirmation message
- * @param {string} orderNumber - Order number
- * @param {string} amount - Order amount
- * @param {string} [brandName] - Optional brand name
- * @returns {string} Formatted order confirmation message
- */
-const generateOrderConfirmationMessage = (orderNumber, amount, brandName = 'Our Service') => {
-  return `Thank you for your order! Order #${orderNumber} for ${amount} has been confirmed. You will receive updates about your order status. - ${brandName}`;
-};
 
 /**
  * Truncate SMS message to fit character limits
@@ -126,34 +154,60 @@ const truncateSMSMessage = (message, maxLength = 1000) => {
  * @returns {object} Unicode analysis
  */
 const analyzeMessageEncoding = (message) => {
-  if (!message) {
+  if (!message || typeof message !== 'string') {
     return {
       hasUnicode: false,
       encoding: 'ASCII',
-      estimatedSMSCount: 0
+      estimatedSMSCount: 0,
+      messageLength: 0,
+      maxSingleSMSLength: LIMITS.MAX_SINGLE_SMS_ASCII
     };
   }
   
-  // Check for Unicode characters (non-ASCII)
-  const hasUnicode = /[^\x00-\x7F]/.test(message);
+  const messageLength = message.length;
+  
+  // Early return for empty messages
+  if (messageLength === 0) {
+    return {
+      hasUnicode: false,
+      encoding: 'ASCII',
+      estimatedSMSCount: 0,
+      messageLength: 0,
+      maxSingleSMSLength: LIMITS.MAX_SINGLE_SMS_ASCII
+    };
+  }
+  
+  // Check for Unicode characters using cached regex
+  const hasUnicode = REGEX_PATTERNS.NON_ASCII.test(message);
   
   // Estimate SMS count based on encoding
-  let smsCount;
-  if (hasUnicode) {
-    // Unicode SMS: 70 characters per SMS
-    smsCount = Math.ceil(message.length / 70);
-  } else {
-    // Standard SMS: 160 characters per SMS
-    smsCount = Math.ceil(message.length / 160);
-  }
+  const maxLength = hasUnicode ? LIMITS.MAX_SINGLE_SMS_UNICODE : LIMITS.MAX_SINGLE_SMS_ASCII;
+  const smsCount = Math.ceil(messageLength / maxLength);
   
   return {
     hasUnicode,
     encoding: hasUnicode ? 'Unicode' : 'ASCII',
-    messageLength: message.length,
+    messageLength,
     estimatedSMSCount: smsCount,
-    maxSingleSMSLength: hasUnicode ? 70 : 160
+    maxSingleSMSLength: maxLength
   };
+};
+
+/**
+ * Sanitize text content (internal helper function)
+ * @param {string} text - Text to sanitize
+ * @param {number} maxLength - Maximum length
+ * @returns {string} Sanitized text
+ */
+const sanitizeText = (text, maxLength = 100) => {
+  if (!text || typeof text !== 'string') return '';
+  
+  return text
+    .replace(REGEX_PATTERNS.HTML_TAGS, '')
+    .replace(REGEX_PATTERNS.WHITESPACE, ' ')
+    .replace(REGEX_PATTERNS.LINE_BREAKS, ' ')
+    .trim()
+    .substring(0, maxLength);
 };
 
 /**
@@ -163,15 +217,23 @@ const analyzeMessageEncoding = (message) => {
  * @returns {string} Sanitized message
  */
 const sanitizeSMSMessage = (message) => {
-  if (!message) return '';
+  if (!message || typeof message !== 'string') {
+    return '';
+  }
   
-  return message
-    // Remove HTML tags
-    .replace(/<[^>]*>/g, '')
-    // Remove excessive whitespace
-    .replace(/\s+/g, ' ')
+  // Early return for empty messages
+  const trimmed = message.trim();
+  if (trimmed.length === 0) {
+    return '';
+  }
+  
+  return trimmed
+    // Remove HTML tags using cached regex
+    .replace(REGEX_PATTERNS.HTML_TAGS, '')
+    // Remove excessive whitespace using cached regex
+    .replace(REGEX_PATTERNS.WHITESPACE, ' ')
     // Remove line breaks that might cause issues
-    .replace(/[\r\n]+/g, ' ')
+    .replace(REGEX_PATTERNS.LINE_BREAKS, ' ')
     // Trim whitespace
     .trim();
 };
@@ -194,9 +256,6 @@ module.exports = {
   formatPhoneForSMS,
   validateSMSEligibility,
   generateOTPMessage,
-  generateWelcomeMessage,
-  generatePasswordResetMessage,
-  generateOrderConfirmationMessage,
   truncateSMSMessage,
   analyzeMessageEncoding,
   sanitizeSMSMessage,

@@ -1,7 +1,8 @@
-const shopifyService = require('../services/shopifyService');
-const otpGenerator = require('../utils/otpGenerator');
-const redisClient = require('../config/database');
-const bcrypt = require('bcrypt');
+const customerService = require('../services/customerService');
+const ErrorHandler = require('../utils/errorHandler');
+const ResponseHelper = require('../utils/responseHelper');
+const { validate, customerSignupSchema } = require('../middlewares/validation');
+const logger = require('../config/logger');
 
 class CustomerController {
   /**
@@ -11,136 +12,70 @@ class CustomerController {
    */
   async createCustomer(req, res) {
     try {
-      const { phoneNumber, name, email, gender, birthdate, acceptsMarketing } = req.body;
-      
-      console.log(`👤 Customer signup request for: ${phoneNumber}, ${email}`);
-
-      // First verify that the customer doesn't already exist
-      console.log('🔍 Checking if customer already exists...');
-      const existingCustomer = await shopifyService.checkCustomerExists(phoneNumber);
-      
-      if (existingCustomer.exists) {
-        return res.status(409).json({
-          success: false,
-          message: 'Customer already exists with this phone number',
-          data: {
-            phoneNumber: phoneNumber,
-            customerExists: true
-          }
-        });
-      }
-
-      // Check if customer exists by email as well
-      const existingByEmail = await shopifyService.checkCustomerExists(email);
-      if (existingByEmail.exists) {
-        return res.status(409).json({
-          success: false,
-          message: 'Customer already exists with this email address',
-          data: {
-            email: email,
-            customerExists: true
-          }
-        });
-      }
-
-      // Generate a random password for the customer
-      console.log('🔐 Generating random password...');
-      const randomPassword = otpGenerator.generateRandomPassword(12);
-      const hashedPassword = otpGenerator.hashPassword(randomPassword);
-
-      // Prepare customer data for Shopify
-      const customerData = {
-        phoneNumber: phoneNumber,
-        name: name,
-        email: email,
-        password: randomPassword, // Shopify expects plain password
-        gender: gender,
-        birthdate: birthdate,
-        acceptsMarketing: acceptsMarketing || false
-      };
-
-      // Create customer in Shopify
-      console.log('🏪 Creating customer in Shopify...');
-      const shopifyResult = await shopifyService.createCustomer(customerData);
-      
-      if (!shopifyResult.success) {
-        console.error('❌ Failed to create customer in Shopify:', shopifyResult.error);
-        return res.status(400).json({
-          success: false,
-          message: 'Failed to create customer account',
-          error: shopifyResult.error
-        });
-      }
-
-      // Store customer data in Redis for persistence
-      console.log('💾 Storing customer data in Redis...');
-      const customerRedisData = {
-        customerId: shopifyResult.customer.id,
-        phoneNumber: phoneNumber,
-        email: email,
-        name: name,
-        hashedPassword: hashedPassword,
-        plainPassword: randomPassword, // Store temporarily for response
-        gender: gender,
-        birthdate: birthdate,
-        acceptsMarketing: acceptsMarketing,
-        createdAt: new Date().toISOString(),
-        shopifyData: shopifyResult.customer
-      };
-
-      // Store by both phone number and email for easy lookup
-      const phoneKey = otpGenerator.generateCustomerDataKey(phoneNumber);
-      const emailKey = otpGenerator.generateCustomerDataKey(email);
-      
-      // Store with no expiry (persist the data)
-      await redisClient.set(phoneKey, customerRedisData);
-      await redisClient.set(emailKey, customerRedisData);
-
-      // Prepare response (exclude sensitive data)
-      const responseData = {
-        customerId: shopifyResult.customer.id,
-        phoneNumber: phoneNumber,
-        email: email,
-        name: name,
-        temporaryPassword: randomPassword, // Include in response so user knows their password
-        acceptsMarketing: acceptsMarketing,
-        createdAt: customerRedisData.createdAt
-      };
-
-      console.log(`✅ Customer created successfully: ${shopifyResult.customer.id}`);
-
-      res.status(201).json({
-        success: true,
-        message: 'Customer account created successfully',
-        data: responseData
+      const customerData = req.body;
+      logger.info('Customer creation request received', { 
+        phoneNumber: customerData.phoneNumber,
+        email: customerData.email 
       });
+      
+      // Delegate business logic to service layer
+      logger.debug('Processing customer creation through service layer');
+      const result = await customerService.createCustomer(customerData);
+      
+      if (!result.success) {
+        logger.warn('WARNING: Customer creation failed', { 
+          error: result.error,
+          message: result.message,
+          phoneNumber: customerData.phoneNumber 
+        });
+        
+        // Handle specific error cases
+        if (result.error === 'CUSTOMER_EXISTS_PHONE') {
+          return ResponseHelper.conflict(res, result.message, result.data);
+        }
+        
+        if (result.error === 'CUSTOMER_EXISTS_EMAIL') {
+          return ResponseHelper.conflict(res, result.message, result.data);
+        }
+        
+        if (result.error === 'SHOPIFY_CREATION_FAILED') {
+          return ErrorHandler.sendErrorResponse(res, 
+            ErrorHandler.handleShopifyError(new Error(result.details))
+          );
+        }
+        
+        // Generic error handling
+        return ErrorHandler.sendErrorResponse(res, 
+          ErrorHandler.createErrorResponse(result.message, 400, result.error)
+        );
+      }
+
+      // Success response
+      logger.info('Customer created successfully', { 
+        customerId: result.data?.customerId,
+        phoneNumber: customerData.phoneNumber 
+      });
+      return ResponseHelper.customerCreated(res, result.data);
 
     } catch (error) {
-      console.error('❌ Error in createCustomer:', error);
-      
-      // Handle specific Shopify errors
-      if (error.message.includes('Shopify')) {
-        return res.status(503).json({
-          success: false,
-          message: 'External service error. Please try again later.',
-          error: 'Shopify integration error'
-        });
-      }
-      
-      // Handle Redis errors
-      if (error.message.includes('Redis')) {
-        return res.status(503).json({
-          success: false,
-          message: 'Service temporarily unavailable. Please try again later.',
-          error: 'Database connection error'
-        });
-      }
-      
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error occurred while creating customer account',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      logger.error('ERROR: Error in createCustomer controller', { 
+        error: error.message,
+        stack: error.stack,
+        phoneNumber: req.body?.phoneNumber 
       });
+      
+      // Handle different types of errors
+      if (error.message.includes('Shopify')) {
+        return ErrorHandler.sendErrorResponse(res, ErrorHandler.handleShopifyError(error));
+      }
+      
+      if (error.message.includes('Redis')) {
+        return ErrorHandler.sendErrorResponse(res, ErrorHandler.handleDatabaseError(error));
+      }
+      
+      return ErrorHandler.sendErrorResponse(res, 
+        ErrorHandler.handleServerError(error, 'createCustomer')
+      );
     }
   }
 
@@ -151,96 +86,58 @@ class CustomerController {
    */
   async checkCustomerExists(req, res) {
     try {
-      console.log('req.query', req.query);
-      let { phoneNumber } = req.query;
-      console.log('phoneNumber', phoneNumber);
+      const { phoneNumber } = req.query;
+      logger.info('Customer existence check request', { phoneNumber });
 
-      if (!phoneNumber) {
-        return res.status(400).json({
-          success: false,
-          message: 'Phone number is required',
-          error: 'Missing phone number parameter'
+      // Validate phone number
+      const phoneValidation = customerService.validatePhoneNumber(phoneNumber);
+      if (!phoneValidation.isValid) {
+        logger.warn('WARNING: Invalid phone number provided', { 
+          phoneNumber,
+          validationError: phoneValidation.message 
         });
+        return ErrorHandler.sendErrorResponse(res, 
+          ErrorHandler.handleValidationError(phoneValidation.message, 'phoneNumber')
+        );
       }
 
-      // Validate Bangladeshi phone number (with or without +88)
-      // Accepts: +8801XXXXXXXXX or 01XXXXXXXXX
-      const bdPhoneRegex = /^(\+8801[3-9]\d{8}|01[3-9]\d{8})$/;
-      if (!bdPhoneRegex.test(phoneNumber)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid Bangladeshi phone number format',
-          error: 'Phone number must be a valid Bangladeshi number (e.g. +88017XXXXXXXX or 017XXXXXXXX)'
+      // Check if customer exists using service layer
+      logger.debug('Checking customer existence in Shopify', { 
+        normalizedPhone: phoneValidation.normalizedNumber 
+      });
+      const result = await customerService.checkCustomerExists(phoneValidation.normalizedNumber);
+      
+      if (result.exists) {
+        logger.info('Customer found', { 
+          phoneNumber: phoneValidation.normalizedNumber,
+          customerId: result.customer?.id 
         });
-      }
-
-      // Convert to international format if needed
-      if (phoneNumber.startsWith('01')) {
-        phoneNumber = '+88' + phoneNumber;
-      }
-      if (!phoneNumber.startsWith('+880')) {
-        // Should not happen due to regex, but just in case
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid Bangladeshi phone number format',
-          error: 'Phone number must start with +880 or 01'
-        });
-      }
-
-      console.log(`🔍 Checking customer existence for phone: ${phoneNumber}`);
-
-      // Check if customer exists in Shopify
-      const customerCheck = await shopifyService.checkCustomerExists(phoneNumber);
-      if (customerCheck.exists && customerCheck.customer) {
-        // Customer found - return customer details
-        const customerData = {
+        return ResponseHelper.customerFound(res, {
           exists: true,
-          customer: {
-            name: customerCheck.customer.displayName || customerCheck.customer.firstName + ' ' + customerCheck.customer.lastName,
-            email: customerCheck.customer.email,
-            phoneNumber: customerCheck.customer.phone || phoneNumber,
-            customerId: customerCheck.customer.id
-          }
-        };
-
-        console.log(`✅ Customer found: ${customerData.customer.email}`);
-
-        return res.status(200).json({
-          success: true,
-          message: 'Customer found',
-          data: customerData
+          customer: result.customer
         });
       } else {
-        // Customer not found
-        console.log(`❌ Customer not found for phone: ${phoneNumber}`);
-
-        return res.status(200).json({
-          success: true,
-          message: 'Customer not found',
-          data: {
-            exists: false,
-            phoneNumber: phoneNumber
-          }
+        logger.info('Customer not found', { 
+          phoneNumber: phoneValidation.normalizedNumber 
         });
+        return ResponseHelper.customerNotFound(res, phoneValidation.normalizedNumber);
       }
 
     } catch (error) {
-      console.error('❌ Error in checkCustomerExists:', error);
+      logger.error('ERROR: Error in checkCustomerExists controller', { 
+        error: error.message,
+        stack: error.stack,
+        phoneNumber: req.query?.phoneNumber 
+      });
       
-      // Handle specific Shopify errors
+      // Handle different types of errors
       if (error.message.includes('Shopify')) {
-        return res.status(503).json({
-          success: false,
-          message: 'External service error. Please try again later.',
-          error: 'Shopify integration error'
-        });
+        return ErrorHandler.sendErrorResponse(res, ErrorHandler.handleShopifyError(error));
       }
       
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error occurred while checking customer existence',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+      return ErrorHandler.sendErrorResponse(res, 
+        ErrorHandler.handleServerError(error, 'checkCustomerExists')
+      );
     }
   }
 

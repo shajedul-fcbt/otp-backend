@@ -1,0 +1,153 @@
+paths:
+  /api/customer/signup:
+    post:
+      summary: Create a new customer account
+      description: |
+        Creates a new customer account in Shopify with the provided information.
+        Generates a temporary password and stores customer data in Redis.
+        Validates phone number format and checks for existing customers.
+      tags: [Customer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSignupRequest'
+            examples:
+              example1:
+                summary: Complete customer data
+                value:
+                  phoneNumber: "+8801712345678"
+                  name: "John Doe"
+                  email: "john.doe@example.com"
+                  gender: "male"
+                  birthdate: "1990-01-15"
+                  acceptsMarketing: true
+              example2:
+                summary: Minimal required data
+                value:
+                  phoneNumber: "+8801712345678"
+                  name: "Jane Smith"
+                  email: "jane.smith@example.com"
+      responses:
+        201:
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSignupResponse'
+        400:
+          description: Validation error or customer already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        409:
+          description: Customer already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Customer already exists with this phone number"
+                  data:
+                    type: object
+                    properties:
+                      phoneNumber:
+                        type: string
+                        example: "+8801712345678"
+                      customerExists:
+                        type: boolean
+                        example: true
+        503:
+          description: Service unavailable - Shopify or Redis connection error
+
+  /api/customer/check-exists:
+    get:
+      summary: Check if a customer exists by phone number
+      description: |
+        Checks if a customer exists in Shopify by phone number.
+        Returns customer information if found, otherwise indicates customer not found.
+      tags: [Customer]
+      parameters:
+        - name: phoneNumber
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\\+880[1-9][0-9]{8}$'
+            example: "+8801712345678"
+          description: Bangladeshi phone number in international format
+      responses:
+        200:
+          description: Customer check completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Customer found"
+                  data:
+                    type: object
+                    properties:
+                      exists:
+                        type: boolean
+                        example: true
+                      customer:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            example: "gid://shopify/Customer/123456789"
+                          email:
+                            type: string
+                            example: "john.doe@example.com"
+                          phone:
+                            type: string
+                            example: "+8801712345678"
+                          firstName:
+                            type: string
+                            example: "John"
+                          lastName:
+                            type: string
+                            example: "Doe"
+        400:
+          description: Invalid phone number format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Customer not found"
+                  data:
+                    type: object
+                    properties:
+                      exists:
+                        type: boolean
+                        example: false
+                      phoneNumber:
+                        type: string
+                        example: "+8801712345678"
+        503:
+          description: Service unavailable - Shopify connection error

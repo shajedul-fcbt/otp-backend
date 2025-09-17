@@ -1,26 +1,12 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const config = require('./environment');
 
 const options = {
   definition: {
     openapi: '3.0.0',
-    info: {
-      title: 'OTP Authentication API',
-      version: '1.0.0',
-      description: 'A comprehensive OTP-based authentication system with Shopify integration',
-      contact: {
-        name: 'Shajedul Islam Shuvo',
-        email: 'shajedul@example.com'
-      }
-    },
-    servers: [
-      {
-        url: process.env.NODE_ENV === 'production' 
-          ? 'https://your-production-domain.com' 
-          : `http://localhost:${process.env.PORT || 3000}`,
-        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
-      }
-    ],
+    info: config.api.swagger,
+    servers: config.api.swagger.servers,
     components: {
       schemas: {
         SendOTPRequest: {
@@ -211,7 +197,11 @@ const options = {
       }
     }
   },
-  apis: ['./src/routes/*.js', './src/controllers/*.js']
+  apis: [
+    './src/routes/*.js', 
+    './src/controllers/*.js',
+    './src/docs/*.yaml'
+  ]
 };
 
 const specs = swaggerJsdoc(options);
