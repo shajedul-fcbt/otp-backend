@@ -3,7 +3,12 @@ require('dotenv').config();
 
 /**
  * Rate limiting middleware configuration
+ * Environment-aware rate limiting for production security
  */
+
+// Rate limiting configuration based on environment
+const isDevelopment = process.env.NODE_ENV === 'development';
+const skipRateLimiting = isDevelopment && process.env.SKIP_OTP_RATE_LIMIT === 'true';
 
 // General API rate limit (relaxed for testing)
 const generalLimiter = rateLimit({
@@ -25,71 +30,87 @@ const generalLimiter = rateLimit({
   }
 });
 
-// Relaxed rate limit for OTP sending (for testing)
+// Production-ready rate limit for OTP sending - prevents SMS bombing
 const otpSendLimiter = rateLimit({
-  windowMs: 1000, // 1 second
-  max: 500, // 500 OTP requests per second for testing
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3, // 3 OTP requests per 15 minutes per IP/phone
   message: {
     success: false,
-    message: 'Too many OTP requests. Please wait a moment before requesting another OTP.',
-    retryAfter: 1
+    message: 'Too many OTP requests. Please wait 15 minutes before requesting another OTP.',
+    retryAfter: 900 // 15 minutes in seconds
   },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many OTP requests. Please wait a moment before requesting another OTP.',
-      retryAfter: 1
+      message: 'Too many OTP requests. Please wait 15 minutes before requesting another OTP.',
+      retryAfter: 900
     });
   },
   keyGenerator: (req) => {
     // Use phone number if available, otherwise fall back to IP
     return req.body?.phoneNumber || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting in development if needed
+    return skipRateLimiting;
   }
 });
 
-// Relaxed rate limit for OTP verification (for testing)
+// Production-ready rate limit for OTP verification - prevents brute force attacks
 const otpVerifyLimiter = rateLimit({
-  windowMs: 1000, // 1 second
-  max: 500, // 500 verification attempts per second for testing
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 5, // 5 verification attempts per 10 minutes per phone/IP
   message: {
     success: false,
-    message: 'Too many verification attempts. Please wait a moment before trying again.',
-    retryAfter: 1
+    message: 'Too many verification attempts. Please wait 10 minutes before trying again.',
+    retryAfter: 600 // 10 minutes in seconds
   },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many verification attempts. Please wait a moment before trying again.',
-      retryAfter: 1
+      message: 'Too many verification attempts. Please wait 10 minutes before trying again.',
+      retryAfter: 600
     });
   },
   keyGenerator: (req) => {
     // Use phone number if available, otherwise fall back to IP
     return req.body?.phoneNumber || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting in development if needed
+    return skipRateLimiting;
   }
 });
 
-// Relaxed rate limit for customer signup (for testing)
+// Production-ready rate limit for customer signup - prevents abuse and spam accounts
 const signupLimiter = rateLimit({
-  windowMs: 1000, // 1 second
-  max: 500, // 500 signup attempts per second for testing
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 signup attempts per hour per IP
   message: {
     success: false,
-    message: 'Too many signup attempts. Please wait a moment before trying again.',
-    retryAfter: 1
+    message: 'Too many signup attempts. Please wait 1 hour before trying again.',
+    retryAfter: 3600 // 1 hour in seconds
   },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: 'Too many signup attempts. Please wait a moment before trying again.',
-      retryAfter: 1
+      message: 'Too many signup attempts. Please wait 1 hour before trying again.',
+      retryAfter: 3600
     });
+  },
+  keyGenerator: (req) => {
+    // Use phone number if available, otherwise fall back to IP
+    return req.body?.phoneNumber || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting in development if needed
+    return skipRateLimiting;
   }
 });
 
@@ -147,11 +168,25 @@ const createPhoneNumberLimiter = (windowMs, max, message) => {
   };
 };
 
-// Phone number specific OTP limiter (relaxed for testing)
+// Phone number specific OTP limiter - stricter per-phone limits
 const phoneOtpLimiter = createPhoneNumberLimiter(
-  1000, // 1 second
-  500, // 500 requests per second per phone number for testing
-  'Too many requests for this phone number. Please wait a moment.'
+  60 * 60 * 1000, // 1 hour
+  2, // 2 requests per hour per phone number
+  'Too many OTP requests for this phone number. Please wait 1 hour before requesting another OTP.'
+);
+
+// Phone number specific verification limiter - prevents targeted brute force
+const phoneVerifyLimiter = createPhoneNumberLimiter(
+  60 * 60 * 1000, // 1 hour
+  3, // 3 verification attempts per hour per phone number
+  'Too many verification attempts for this phone number. Please wait 1 hour before trying again.'
+);
+
+// Phone number specific signup limiter - prevents multiple account creation from same phone
+const phoneSignupLimiter = createPhoneNumberLimiter(
+  24 * 60 * 60 * 1000, // 24 hours
+  1, // 1 signup attempt per day per phone number
+  'Only one account can be created per phone number every 24 hours.'
 );
 
 module.exports = {
@@ -161,5 +196,7 @@ module.exports = {
   signupLimiter,
   swaggerLimiter,
   phoneOtpLimiter,
+  phoneVerifyLimiter,
+  phoneSignupLimiter,
   createPhoneNumberLimiter
 };
