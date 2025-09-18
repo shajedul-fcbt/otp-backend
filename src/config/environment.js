@@ -79,7 +79,7 @@ class EnvironmentConfig {
    */
   get otp() {
     return {
-      secretKey: process.env.OTP_SECRET_KEY || 'default_secret_key_please_change_in_production',
+      secretKey: process.env.HMAC_SECRET,
       expiryMinutes: parseInt(process.env.OTP_EXPIRY_MINUTES) || 10,
       length: 6,
       resendWaitMinutes: 2,
@@ -121,7 +121,7 @@ class EnvironmentConfig {
           ['*'],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-        credentials: false,
+        credentials: true,
         optionsSuccessStatus: 200,
         preflightContinue: false
       },
@@ -249,7 +249,7 @@ class EnvironmentConfig {
     const requiredVars = [
       'REDIS_HOST',
       'SHOPIFY_STORE_DOMAIN',
-      'OTP_SECRET_KEY'
+      'HMAC_SECRET'
     ];
 
     const missingVars = requiredVars.filter(varName => !process.env[varName]);

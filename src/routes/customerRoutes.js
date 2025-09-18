@@ -3,6 +3,7 @@ const router = express.Router();
 const customerController = require('../controllers/customerController');
 const { validate, validatePhoneNumber, validatePhoneNumberQuery, customerSignupSchema } = require('../middlewares/validation');
 const { signupLimiter, generalLimiter, phoneSignupLimiter } = require('../middlewares/rateLimiter');
+const deviceMiddleware = require('../middlewares/deviceMiddleware');
 
 /**
  * @swagger
@@ -13,6 +14,7 @@ const { signupLimiter, generalLimiter, phoneSignupLimiter } = require('../middle
 
 // Customer signup endpoint
 router.post('/signup', 
+  deviceMiddleware.requireDeviceId, // Require device cookie validation
   signupLimiter,                    // Rate limit signup attempts by IP/phone
   phoneSignupLimiter,               // Additional per-phone signup limiting
   validate(customerSignupSchema),   // Validate request body

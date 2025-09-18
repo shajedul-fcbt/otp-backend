@@ -164,14 +164,13 @@ class SMSService {
       logger.info(`   CSMS ID: ${payload.csms_id}`);
 
       // Make API request
-      const response = await axios.post(`${this.baseURL}/api/v3/send-sms`, payload, {
+      const response = await axios.post(`${this.baseURL}`, payload, {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
         timeout: this.config.timeout
       });
-
       // Check response status
       if (response.status !== 200) {
         throw new Error(`SMS API returned status ${response.status}`);

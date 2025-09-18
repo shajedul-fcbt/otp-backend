@@ -94,7 +94,7 @@ SMS_SID=your_sms_sid
 SMS_BASE_URL=https://api.sslwireless.com
 
 # OTP Configuration
-OTP_SECRET_KEY=your_otp_secret_key
+HMAC_SECRET=your_hmac_secret_for_otp_and_challenge_protocol
 ```
 
 ## Phone Number Format Support

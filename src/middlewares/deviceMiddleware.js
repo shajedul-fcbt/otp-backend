@@ -12,8 +12,8 @@ class DeviceMiddleware {
     this.cookieName = 'device_id';
     this.cookieOptions = {
       httpOnly: true,
-      secure: config.server.isProduction,
-      sameSite: 'strict',
+      secure: true,
+      sameSite: 'none',
       maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
       path: '/'
     };
@@ -25,6 +25,9 @@ class DeviceMiddleware {
   mintDeviceId = (req, res, next) => {
     try {
       let deviceId = req.cookies[this.cookieName];
+      console.log("Inside Health Cookie API");
+      console.log(deviceId);
+      
 
       if (!deviceId) {
         deviceId = uuidv4();
@@ -47,8 +50,11 @@ class DeviceMiddleware {
   /**
    * Middleware to require device_id cookie
    */
-  requireDeviceId = (req, res, next) => {
-    const deviceId = req.cookies[this.cookieName];
+requireDeviceId   = (req, res, next) => {
+    let deviceId = req.cookies[this.cookieName];
+    console.log("Inside requireDeviceId");
+    console.log(req.cookies);
+    console.log(deviceId);
 
     if (!deviceId) {
       return res.status(400).json({

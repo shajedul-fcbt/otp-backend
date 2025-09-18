@@ -46,9 +46,10 @@ class OTPService {
       
       // Store OTP in Redis with expiry
       await this.storeOTPInRedis(normalizedPhone, otpData);
+      logger.info(otpData);
       
       // Send SMS
-      await this.sendOTPSMS(normalizedPhone, otpData);
+      // await this.sendOTPSMS(normalizedPhone, otpData);
       
       // Prepare response data
       const responseData = this.prepareOTPResponse(normalizedPhone, customerCheck, otpData);
@@ -314,8 +315,8 @@ class OTPService {
       sms: smsContent,
       csms_id: `${SMS_CONFIG.CSMS_ID_PREFIX}${smsService.generateCSMSId()}`
     });
-
     if (!result.success) {
+      logger.error(result);
       throw new Error(`SMS sending failed: ${result.message}`);
     }
   }

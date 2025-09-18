@@ -3,6 +3,7 @@ const router = express.Router();
 const otpController = require('../controllers/otpController');
 const { validate, validatePhoneNumber, sendOTPSchema, verifyOTPSchema } = require('../middlewares/validation');
 const { otpSendLimiter, otpVerifyLimiter, phoneOtpLimiter, phoneVerifyLimiter } = require('../middlewares/rateLimiter');
+const deviceMiddleware = require('../middlewares/deviceMiddleware');
 
 /**
  * @swagger
@@ -13,6 +14,7 @@ const { otpSendLimiter, otpVerifyLimiter, phoneOtpLimiter, phoneVerifyLimiter } 
 
 // Send OTP endpoint
 router.post('/send', 
+  deviceMiddleware.requireDeviceId, // Require device cookie validation
   otpSendLimiter,           // Rate limit OTP sending
   phoneOtpLimiter,          // Additional per-phone rate limiting
   validate(sendOTPSchema),   // Validate request body
@@ -22,6 +24,7 @@ router.post('/send',
 
 // Verify OTP endpoint
 router.post('/verify', 
+  deviceMiddleware.requireDeviceId, // Require device cookie validation
   otpVerifyLimiter,         // Rate limit verification attempts (by IP/phone)
   phoneVerifyLimiter,       // Additional per-phone verification limiting
   validate(verifyOTPSchema), // Validate request body
@@ -31,6 +34,7 @@ router.post('/verify',
 
 // Resend OTP endpoint
 router.post('/resend', 
+  deviceMiddleware.requireDeviceId, // Require device cookie validation
   otpSendLimiter,           // Rate limit resend requests
   validate(sendOTPSchema),   // Validate request body
   validatePhoneNumber,       // Custom phone validation
