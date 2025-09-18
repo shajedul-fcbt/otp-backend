@@ -52,16 +52,13 @@ class DeviceMiddleware {
    */
 requireDeviceId   = (req, res, next) => {
     let deviceId = req.cookies[this.cookieName];
-    console.log("Inside requireDeviceId");
-    console.log(req.cookies);
-    console.log(deviceId);
 
     if (!deviceId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: 'Device ID required',
-        error: 'MISSING_DEVICE_ID',
-        code: 'DEVICE_ID_REQUIRED'
+        message: 'Forbidden',
+        error: 'Unusual Activity Detected',
+        code: '403'
       });
     }
 

@@ -26,7 +26,8 @@ class OTPController {
       const sanitizedBody = InputSanitizer.sanitizeRequestBody(req.body);
       const { phoneNumber } = sanitizedBody;
       
-      const result = await otpService.sendOTP(phoneNumber);
+      // Pass deviceId for device binding security
+      const result = await otpService.sendOTP(phoneNumber, req.deviceId);
       
       // Log OTP for development (remove in production)
       if (config.server.isDevelopment && result.data) {
@@ -94,7 +95,8 @@ class OTPController {
       const sanitizedBody = InputSanitizer.sanitizeRequestBody(req.body);
       const { phoneNumber, otp } = sanitizedBody;
       
-      const result = await otpService.verifyOTP(phoneNumber, otp);
+      // Pass deviceId for device binding security
+      const result = await otpService.verifyOTP(phoneNumber, otp, req.deviceId);
       
       if (result.success) {
         res.status(HTTP_STATUS.OK).json(result);
@@ -153,7 +155,8 @@ class OTPController {
       const sanitizedBody = InputSanitizer.sanitizeRequestBody(req.body);
       const { phoneNumber } = sanitizedBody;
       
-      const result = await otpService.resendOTP(phoneNumber);
+      // Pass deviceId for device binding security
+      const result = await otpService.resendOTP(phoneNumber, req.deviceId);
       
       if (result.success) {
         res.status(HTTP_STATUS.OK).json(result);

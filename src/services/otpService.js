@@ -22,9 +22,10 @@ class OTPService {
   /**
    * Sends OTP to a phone number
    * @param {string} phoneNumber - The phone number to send OTP to
+   * @param {string} deviceId - The device ID for binding security
    * @returns {Promise<object>} Result of OTP sending operation
    */
-  async sendOTP(phoneNumber) {
+  async sendOTP(phoneNumber, deviceId) {
     try {
       logger.info(`${LOG_MESSAGES.OTP_REQUEST}: ${phoneNumber}`);
 
@@ -43,6 +44,9 @@ class OTPService {
       // Generate OTP
       logger.info(LOG_MESSAGES.GENERATING_OTP);
       const otpData = otpGenerator.generateOTP(normalizedPhone);
+      
+      // Add deviceId to OTP data for security binding
+      otpData.deviceId = deviceId;
       
       // Store OTP in Redis with expiry
       await this.storeOTPInRedis(normalizedPhone, otpData);
@@ -70,9 +74,10 @@ class OTPService {
    * Verifies OTP for a phone number
    * @param {string} phoneNumber - The phone number
    * @param {string} otp - The OTP code to verify
+   * @param {string} deviceId - The device ID for binding security
    * @returns {Promise<object>} Result of OTP verification
    */
-  async verifyOTP(phoneNumber, otp) {
+  async verifyOTP(phoneNumber, otp, deviceId) {
     try {
       logger.info(`${LOG_MESSAGES.OTP_VERIFICATION}: ${phoneNumber}`);
 
@@ -101,6 +106,21 @@ class OTPService {
             phoneNumber: normalizedPhone,
             verified: false,
             expired: true
+          }
+        };
+      }
+
+      // Verify device binding - must match the device that requested OTP
+      if (storedOTPData.deviceId !== deviceId) {
+        logger.warn(`Device mismatch for ${normalizedPhone}: stored=${storedOTPData.deviceId}, provided=${deviceId}`);
+        return {
+          success: false,
+          message: ERROR_MESSAGES.OTP_DEVICE_MISMATCH,
+          data: {
+            phoneNumber: normalizedPhone,
+            verified: false,
+            expired: false,
+            error: 'DEVICE_MISMATCH'
           }
         };
       }
@@ -145,9 +165,10 @@ class OTPService {
   /**
    * Resends OTP to a phone number with additional rate limiting
    * @param {string} phoneNumber - The phone number to resend OTP to
+   * @param {string} deviceId - The device ID for binding security
    * @returns {Promise<object>} Result of OTP resend operation
    */
-  async resendOTP(phoneNumber) {
+  async resendOTP(phoneNumber, deviceId) {
     try {
       logger.info(`${LOG_MESSAGES.OTP_RESEND_REQUEST}: ${phoneNumber}`);
 
@@ -175,8 +196,8 @@ class OTPService {
         };
       }
 
-      // Send new OTP
-      return await this.sendOTP(normalizedPhone);
+      // Send new OTP with same deviceId
+      return await this.sendOTP(normalizedPhone, deviceId);
 
     } catch (error) {
       logger.error(`${LOG_MESSAGES.ERROR_OCCURRED} in resendOTP:`, error);

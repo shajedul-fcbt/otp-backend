@@ -23,6 +23,7 @@ const ERROR_MESSAGES = {
   OTP_INTEGRITY_FAILED: 'OTP data integrity check failed',
   OTP_TOO_EARLY_RESEND: 'Please wait before requesting another OTP',
   OTP_RATE_LIMITED: 'Too many OTP requests. Please wait before trying again',
+  OTP_DEVICE_MISMATCH: 'OTP must be verified from the same device that requested it',
   PHONE_NUMBER_REQUIRED: 'Phone number is required',
   INVALID_PHONE_FORMAT: 'Invalid phone number format',
   REDIS_CONNECTION_ERROR: 'Database connection error',
