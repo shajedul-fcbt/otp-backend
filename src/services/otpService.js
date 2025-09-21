@@ -112,7 +112,7 @@ class OTPService {
 
       // Verify device binding - must match the device that requested OTP
       if (storedOTPData.deviceId !== deviceId) {
-        logger.warn(`Device mismatch for ${normalizedPhone}: stored=${storedOTPData.deviceId}, provided=${deviceId}`);
+        logger.warn(`Unauthorized device. Unused device detected.`);
         return {
           success: false,
           message: ERROR_MESSAGES.OTP_DEVICE_MISMATCH,

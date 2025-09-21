@@ -80,13 +80,13 @@ class CustomerController {
   }
 
   /**
-   * Check if a customer exists on Shopify by phone number
+   * Check if a customer exists on Shopify by phone number and/or email
    * @param {object} req - Express request object
    * @param {object} res - Express response object
    */
   async checkCustomerExists(req, res) {
     try {
-      const { phoneNumber } = req.query;
+      const { phoneNumber, email } = req.query;
       logger.info('Customer existence check request', { phoneNumber });
 
       // Validate phone number

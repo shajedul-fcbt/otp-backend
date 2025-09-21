@@ -1,3 +1,4 @@
+const config = require('../config/environment');
 /**
  * OTP-related constants and configuration
  */
@@ -5,7 +6,7 @@
 // OTP Configuration
 const OTP_CONFIG = {
   LENGTH: 6,
-  EXPIRY_MINUTES: 10,
+  EXPIRY_MINUTES: config.otp.expiryMinutes,
   RESEND_WAIT_MINUTES: 2,
   MAX_ATTEMPTS: 3,
   TIME_WINDOW_MINUTES: 5

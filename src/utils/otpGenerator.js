@@ -15,7 +15,7 @@ const getBcrypt = () => {
 const DEFAULTS = {
   PASSWORD_LENGTH: 12,
   SALT_ROUNDS: 12,
-  TIME_WINDOW_MS: 5 * 60 * 1000, // 5 minutes
+  TIME_WINDOW_MS: 1 * 60 * 1000, // 1 minutes
   MAX_PHONE_LENGTH: 20,
   MAX_PASSWORD_LENGTH: 128
 };
@@ -37,6 +37,91 @@ class OTPGenerator {
   }
 
   /**
+   * Validates input parameters for OTP generation
+   * @param {string} phoneNumber - The phone number to validate
+   * @param {number} timestamp - The timestamp to validate
+   * @returns {object} - Validated and normalized inputs
+   * @private
+   */
+  _validateOTPInputs(phoneNumber, timestamp) {
+    if (!phoneNumber || typeof phoneNumber !== 'string') {
+      throw new Error('Phone number is required and must be a string');
+    }
+    
+    if (phoneNumber.length > DEFAULTS.MAX_PHONE_LENGTH) {
+      throw new Error('Phone number is too long');
+    }
+    
+    if (timestamp !== null && (!Number.isInteger(timestamp) || timestamp < 0)) {
+      throw new Error('Timestamp must be a positive integer');
+    }
+    
+    const currentTime = timestamp || Date.now();
+    const normalizedPhone = phoneNumber.trim();
+    
+    return { normalizedPhone, currentTime };
+  }
+
+  /**
+   * Calculates time window for HMAC generation
+   * @param {number} currentTime - Current timestamp
+   * @returns {number} - Time window value
+   * @private
+   */
+  _calculateTimeWindow(currentTime) {
+    return Math.floor(currentTime / DEFAULTS.TIME_WINDOW_MS);
+  }
+
+  /**
+   * Generates HMAC for OTP creation
+   * @param {string} normalizedPhone - Normalized phone number
+   * @param {number} timeWindow - Time window value
+   * @returns {string} - HMAC result in hex format
+   * @private
+   */
+  _generateHMAC(normalizedPhone, timeWindow) {
+    const dataString = `${normalizedPhone}:${timeWindow}:${this.secretKey}`;
+    const hmac = crypto.createHmac('sha256', this.secretKey);
+    hmac.update(dataString, 'utf8');
+    return hmac.digest('hex');
+  }
+
+  /**
+   * Extracts OTP from HMAC result
+   * @param {string} hmacResult - HMAC result in hex format
+   * @returns {string} - Generated OTP
+   * @private
+   */
+  _extractOTPFromHMAC(hmacResult) {
+    const lastChar = hmacResult.charAt(hmacResult.length - 1);
+    const offset = parseInt(lastChar, 16) % 10;
+    const otpLength = this.config.length || 6;
+    
+    // Ensure we don't go out of bounds
+    const startPos = Math.min(offset, hmacResult.length - otpLength);
+    const hexSubstring = hmacResult.substring(startPos, startPos + otpLength);
+    const otpNum = parseInt(hexSubstring, 16) % Math.pow(10, otpLength);
+    
+    return otpNum.toString().padStart(otpLength, '0');
+  }
+
+  /**
+   * Creates verification hash for OTP data integrity
+   * @param {string} normalizedPhone - Normalized phone number
+   * @param {string} otp - Generated OTP
+   * @param {number} currentTime - Current timestamp
+   * @param {number} expiryTime - Expiry timestamp
+   * @returns {string} - Verification hash
+   * @private
+   */
+  _createVerificationHash(normalizedPhone, otp, currentTime, expiryTime) {
+    const verificationData = `${normalizedPhone}:${otp}:${currentTime}:${expiryTime}`;
+    const verificationHmac = crypto.createHmac('sha256', this.secretKey);
+    verificationHmac.update(verificationData, 'utf8');
+    return verificationHmac.digest('hex');
+  }
+
+  /**
    * Generates a 6-digit OTP using HMAC algorithm
    * @param {string} phoneNumber - The phone number for which OTP is generated
    * @param {number} timestamp - Optional timestamp, defaults to current time
@@ -44,53 +129,23 @@ class OTPGenerator {
    */
   generateOTP(phoneNumber, timestamp = null) {
     try {
-      // Input validation
-      if (!phoneNumber || typeof phoneNumber !== 'string') {
-        throw new Error('Phone number is required and must be a string');
-      }
+      // Validate inputs
+      const { normalizedPhone, currentTime } = this._validateOTPInputs(phoneNumber, timestamp);
       
-      if (phoneNumber.length > DEFAULTS.MAX_PHONE_LENGTH) {
-        throw new Error('Phone number is too long');
-      }
-      
-      if (timestamp !== null && (!Number.isInteger(timestamp) || timestamp < 0)) {
-        throw new Error('Timestamp must be a positive integer');
-      }
-      
-      // Use provided timestamp or current time
-      const currentTime = timestamp || Date.now();
-      
-      // Create a time window to make HMAC more dynamic
-      const timeWindow = Math.floor(currentTime / DEFAULTS.TIME_WINDOW_MS);
-      
-      // Create data string for HMAC with input validation
-      const normalizedPhone = phoneNumber.trim();
-      const dataString = `${normalizedPhone}:${timeWindow}:${this.secretKey}`;
+      // Calculate time window
+      const timeWindow = this._calculateTimeWindow(currentTime);
       
       // Generate HMAC
-      const hmac = crypto.createHmac('sha256', this.secretKey);
-      hmac.update(dataString, 'utf8');
-      const hmacResult = hmac.digest('hex');
+      const hmacResult = this._generateHMAC(normalizedPhone, timeWindow);
       
-      // Extract digits from HMAC with bounds checking
-      const lastChar = hmacResult.charAt(hmacResult.length - 1);
-      const offset = parseInt(lastChar, 16) % 10;
-      const otpLength = this.config.length || 6;
-      
-      // Ensure we don't go out of bounds
-      const startPos = Math.min(offset, hmacResult.length - otpLength);
-      const hexSubstring = hmacResult.substring(startPos, startPos + otpLength);
-      const otpNum = parseInt(hexSubstring, 16) % Math.pow(10, otpLength);
-      const otp = otpNum.toString().padStart(otpLength, '0');
+      // Extract OTP from HMAC
+      const otp = this._extractOTPFromHMAC(hmacResult);
       
       // Calculate expiry time
       const expiryTime = currentTime + (this.expiryMinutes * 60 * 1000);
       
       // Create verification hash
-      const verificationData = `${normalizedPhone}:${otp}:${currentTime}:${expiryTime}`;
-      const verificationHmac = crypto.createHmac('sha256', this.secretKey);
-      verificationHmac.update(verificationData, 'utf8');
-      const verificationHash = verificationHmac.digest('hex');
+      const verificationHash = this._createVerificationHash(normalizedPhone, otp, currentTime, expiryTime);
       
       return {
         otp,
