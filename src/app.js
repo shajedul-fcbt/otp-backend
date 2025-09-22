@@ -1,3 +1,7 @@
+// Initialize Sentry first (must be before other imports)
+const { initializeSentry } = require('./config/sentry');
+initializeSentry();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -132,6 +136,77 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
+// ===== SENTRY TEST ENDPOINT (Development only) =====
+if (config.server.isDevelopment) {
+  app.get('/api/test-sentry', (req, res) => {
+    try {
+      const { captureMessage, captureException, addBreadcrumb } = require('./config/sentry');
+      
+      // Add breadcrumb
+      addBreadcrumb({
+        message: 'Sentry test endpoint called',
+        category: 'test',
+        level: 'info',
+        data: { timestamp: new Date().toISOString() }
+      });
+      
+      // Test different types of Sentry captures
+      const testType = req.query.type || 'message';
+      
+      switch (testType) {
+        case 'message':
+          captureMessage('Test message from OTP Backend API', 'info', {
+            tags: { test: true, endpoint: '/api/test-sentry' },
+            extra: { timestamp: new Date().toISOString() }
+          });
+          break;
+          
+        case 'warning':
+          logger.warn('Test warning log that should appear in Sentry', {
+            test: true,
+            endpoint: '/api/test-sentry'
+          });
+          break;
+          
+        case 'error':
+          logger.error('Test error log that should appear in Sentry', {
+            test: true,
+            endpoint: '/api/test-sentry'
+          });
+          break;
+          
+        case 'exception':
+          try {
+            throw new Error('Test exception for Sentry integration');
+          } catch (error) {
+            captureException(error, {
+              tags: { test: true, endpoint: '/api/test-sentry' },
+              extra: { timestamp: new Date().toISOString() }
+            });
+          }
+          break;
+          
+        default:
+          captureMessage('Default test message', 'info');
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: `Sentry test completed: ${testType}`,
+        note: 'Check your Sentry dashboard for the test event',
+        availableTypes: ['message', 'warning', 'error', 'exception']
+      });
+    } catch (error) {
+      logger.error('Error in Sentry test endpoint:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error testing Sentry integration',
+        error: error.message
+      });
+    }
+  });
+}
+
 // ===== SWAGGER DOCUMENTATION =====
 app.use('/api-docs', swaggerLimiter, swaggerUi.serve, swaggerUi.setup(specs, {
   explorer: true,
@@ -193,6 +268,21 @@ app.use((req, res) => {
 // Global error handler
 app.use((error, req, res, next) => {
   logger.error('ERROR: Global Error Handler:', error);
+  
+  // Send error to Sentry
+  const { captureException } = require('./config/sentry');
+  captureException(error, {
+    tags: {
+      errorType: 'global_handler',
+      method: req.method,
+      url: req.url
+    },
+    extra: {
+      requestId: req.id,
+      userAgent: req.get('User-Agent'),
+      timestamp: new Date().toISOString()
+    }
+  });
   
   // CORS errors
   if (error.message && error.message.includes('CORS')) {

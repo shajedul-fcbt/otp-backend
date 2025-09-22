@@ -175,6 +175,33 @@ class EnvironmentConfig {
   }
 
   /**
+   * Sentry Configuration
+   */
+  get sentry() {
+    return {
+      dsn: process.env.SENTRY_DSN,
+      environment: this.server.nodeEnv,
+      enabled: process.env.SENTRY_ENABLED === 'true' && !!process.env.SENTRY_DSN,
+      debug: this.server.isDevelopment,
+      tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE) || 0.1,
+      profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE) || 0.1,
+      release: process.env.SENTRY_RELEASE || `otp-backend@${require('../../package.json').version}`,
+      beforeSend: (event) => {
+        // Filter out sensitive data
+        if (event.extra) {
+          const sensitiveFields = ['password', 'otp', 'token', 'secret', 'apiToken', 'accessToken'];
+          sensitiveFields.forEach(field => {
+            if (event.extra[field]) {
+              event.extra[field] = '[REDACTED]';
+            }
+          });
+        }
+        return event;
+      }
+    };
+  }
+
+  /**
    * Logging Configuration
    */
   get logging() {
@@ -183,7 +210,8 @@ class EnvironmentConfig {
       enableRequestLogging: true,
       enableErrorLogging: true,
       maskSensitiveData: true,
-      sensitiveFields: ['password', 'otp', 'token', 'secret']
+      sensitiveFields: ['password', 'otp', 'token', 'secret'],
+      sentry: this.sentry
     };
   }
 

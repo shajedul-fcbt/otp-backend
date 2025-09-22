@@ -82,7 +82,7 @@ class OTPController {
   async verifyOTP(req, res) {
     try {
       // Sanitize and validate input
-      const validation = InputSanitizer.validateRequestBody(req.body, 'verify');
+      const validation = InputSanitizer.validateRequestBoOTP_EXPIRY_MINUTESdy(req.body, 'verify');
       if (!validation.isValid) {
         return res.status(HTTP_STATUS.BAD_REQUEST).json({
           success: false,

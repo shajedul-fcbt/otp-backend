@@ -78,5 +78,34 @@ logger.stream = {
   }
 };
 
+/**
+ * Add Sentry transport to logger (called after Sentry is initialized)
+ */
+logger.addSentryTransport = function() {
+  try {
+    const { SentryTransport } = require('./sentry');
+    
+    // Check if Sentry transport is already added
+    const hasSentryTransport = this.transports.some(transport => transport.name === 'sentry');
+    if (hasSentryTransport) {
+      return;
+    }
+    
+    // Add Sentry transport
+    this.add(new SentryTransport({
+      level: 'warn', // Send warnings and errors to Sentry
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+      )
+    }));
+    
+    console.log('Sentry transport added to Winston logger');
+  } catch (error) {
+    console.error('Failed to add Sentry transport to logger:', error.message);
+  }
+};
+
 module.exports = logger;
 

@@ -5,6 +5,7 @@
 
 const { ERROR_MESSAGES, HTTP_STATUS } = require('../constants/customerConstants');
 const logger = require('../config/logger');
+const { captureException, captureMessage, addBreadcrumb } = require('../config/sentry');
 
 // Error type constants for better maintainability
 const ERROR_TYPES = {
@@ -71,6 +72,18 @@ class ErrorHandler {
       stack: error.stack,
       timestamp: new Date().toISOString()
     });
+
+    // Send to Sentry with additional context
+    captureException(error, {
+      tags: {
+        errorType: ERROR_TYPES.SHOPIFY,
+        service: 'shopify'
+      },
+      extra: {
+        context: 'Shopify service integration',
+        timestamp: new Date().toISOString()
+      }
+    });
     
     const errorMessage = error.message || '';
     const isShopifyError = errorMessage.toLowerCase().includes('shopify');
@@ -103,6 +116,19 @@ class ErrorHandler {
       code: error.code,
       stack: error.stack,
       timestamp: new Date().toISOString()
+    });
+
+    // Send to Sentry with additional context
+    captureException(error, {
+      tags: {
+        errorType: ERROR_TYPES.DATABASE,
+        service: 'database'
+      },
+      extra: {
+        context: 'Database operation',
+        errorCode: error.code,
+        timestamp: new Date().toISOString()
+      }
     });
     
     const errorMessage = error.message || '';
@@ -169,6 +195,31 @@ class ErrorHandler {
     }
 
     logger.error(`Server error in ${errorContext}:`, logData);
+
+    // Send to Sentry with additional context
+    if (error) {
+      captureException(error, {
+        tags: {
+          errorType: ERROR_TYPES.INTERNAL,
+          context: errorContext
+        },
+        extra: {
+          timestamp: new Date().toISOString(),
+          context: errorContext
+        }
+      });
+    } else {
+      captureMessage(`Server error in ${errorContext}`, 'error', {
+        tags: {
+          errorType: ERROR_TYPES.INTERNAL,
+          context: errorContext
+        },
+        extra: {
+          timestamp: new Date().toISOString(),
+          context: errorContext
+        }
+      });
+    }
     
     return this.createErrorResponse(
       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
