@@ -84,6 +84,10 @@ const customerSignupSchema = Joi.object({
   acceptsMarketing: acceptsMarketingSchema
 });
 
+const loginLinkRequestSchema = Joi.object({
+  email: emailSchema
+});
+
 /**
  * Middleware factory for validation
  */
@@ -268,6 +272,7 @@ module.exports = {
   sendOTPSchema,
   verifyOTPSchema,
   customerSignupSchema,
+  loginLinkRequestSchema,
   
   // Validation middleware
   validate,

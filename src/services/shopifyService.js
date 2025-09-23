@@ -136,6 +136,85 @@ class ShopifyService {
   }
 
   /**
+   * Check customer by email using Admin API
+   * @param {string} email - Customer's email address
+   * @returns {object} - Customer existence result
+   */
+  async checkCustomerByEmail(email) {
+    try {
+      if (!this.storeDomain || !this.adminAccessToken) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Shopify Admin API not configured'
+        };
+      }
+
+      // Use REST API to search customers by email
+      const searchUrl = `${this.adminRestApiUrl}/customers.json?email=${encodeURIComponent(email)}&limit=1`;
+
+      logger.debug('Email search URL:', searchUrl);
+      
+      const response = await axios.get(searchUrl, {
+        headers: {
+          'X-Shopify-Access-Token': this.adminAccessToken,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      if (response.data && response.data.customers && response.data.customers.length > 0) {
+        const customer = response.data.customers[0];
+        return {
+          exists: true,
+          customer: {
+            id: `gid://shopify/Customer/${customer.id}`,
+            email: customer.email,
+            phone: customer.phone,
+            firstName: customer.first_name,
+            lastName: customer.last_name,
+            acceptsMarketing: customer.accepts_marketing,
+            createdAt: customer.created_at,
+            updatedAt: customer.updated_at
+          },
+          error: null
+        };
+      }
+
+      return {
+        exists: false,
+        customer: null,
+        error: null
+      };
+
+    } catch (error) {
+      logger.error('Admin API customer email check failed:', error.message);
+      
+      if (error.response?.status === 401) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Invalid Admin API access token'
+        };
+      }
+      
+      if (error.response?.status === 402) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Shopify store payment required'
+        };
+      }
+      
+      return {
+        exists: false,
+        customer: null,
+        error: 'Admin API request failed'
+      };
+    }
+  }
+
+  /**
    * Creates a new customer in Shopify
    * @param {object} customerData - Customer information
    * @returns {object} - Customer creation result

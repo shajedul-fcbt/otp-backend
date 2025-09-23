@@ -16,6 +16,7 @@ A comprehensive OTP (One-Time Password) authentication backend built with Expres
 - **Security**: Helmet for security headers, input sanitization, and data integrity checks
 - **Professional Logging**: Winston-based structured logging with file output
 - **Customer Management**: Complete customer lifecycle with temporary password generation
+- **Email-based Login Links**: Secure login link generation and verification with email validation
 
 ## API Endpoints
 
@@ -27,6 +28,11 @@ A comprehensive OTP (One-Time Password) authentication backend built with Expres
 ### Customer Management
 - `POST /api/customer/signup` - Create new customer account
 - `GET /api/customer/check-exists` - Check if customer exists by phone number
+
+### Login Link Authentication
+- `POST /api/auth/login-link/request` - Request secure login link via email
+- `GET /api/auth/login-link/verify` - Verify login link token and authenticate user
+- `GET /api/auth/login-link/status` - Get login link service status
 
 ### System & Monitoring
 - `GET /` - API information and available endpoints

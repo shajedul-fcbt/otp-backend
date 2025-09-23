@@ -154,6 +154,7 @@ class EnvironmentConfig {
       version: '1.0.0',
       timeout: 30000,
       maxRequestSize: '10mb',
+      frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
       swagger: {
         title: 'OTP Authentication API',
         description: 'A comprehensive OTP-based authentication system with Shopify integration',
@@ -170,6 +171,39 @@ class EnvironmentConfig {
             description: this.server.isProduction ? 'Production server' : 'Development server'
           }
         ]
+      }
+    };
+  }
+
+  /**
+   * Email Configuration
+   */
+  get email() {
+    return {
+      enabled: process.env.EMAIL_ENABLED === 'true' || true,
+      mockSending: process.env.MOCK_EMAIL_SENDING === 'true' || true,
+      provider: process.env.EMAIL_PROVIDER || 'mock',
+      fromEmail: process.env.EMAIL_FROM || 'noreply@example.com',
+      fromName: process.env.EMAIL_FROM_NAME || 'OTP Authentication Service',
+      timeout: parseInt(process.env.EMAIL_TIMEOUT_MS) || 30000,
+      
+      // SendGrid configuration (example)
+      sendgrid: {
+        apiKey: process.env.SENDGRID_API_KEY,
+        templateId: process.env.SENDGRID_LOGIN_TEMPLATE_ID
+      },
+      
+      // Mailgun configuration (example)
+      mailgun: {
+        apiKey: process.env.MAILGUN_API_KEY,
+        domain: process.env.MAILGUN_DOMAIN
+      },
+      
+      // AWS SES configuration (example)
+      ses: {
+        region: process.env.AWS_SES_REGION || 'us-east-1',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
       }
     };
   }

@@ -17,6 +17,7 @@ const { sanitizeInput, validateContentType, handleValidationError } = require('.
 const otpRoutes = require('./routes/otpRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const healthRoutes = require('./routes/healthRoutes');
+const loginLinkRoutes = require('./routes/loginLinkRoutes');
 
 // Import configuration
 const redisClient = require('./config/database');
@@ -221,6 +222,7 @@ app.use('/api', generalLimiter);
 // Mount route handlers
 app.use('/api/otp', otpRoutes);
 app.use('/api/customer', customerRoutes);
+app.use('/api/auth/login-link', loginLinkRoutes);
 
 // ===== ROOT ENDPOINT =====
 app.get('/', (req, res) => {
@@ -241,6 +243,11 @@ app.get('/', (req, res) => {
       customer: {
         signup: 'POST /api/customer/signup',
         checkExists: 'GET /api/customer/check-exists'
+      },
+      loginLink: {
+        request: 'POST /api/auth/login-link/request',
+        verify: 'GET /api/auth/login-link/verify',
+        status: 'GET /api/auth/login-link/status'
       }
     }
   });
