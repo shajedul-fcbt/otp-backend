@@ -78,6 +78,17 @@ class CustomerService {
     }
   }
 
+    /**
+   * Gets customer data from Redis
+   * @param {string} phoneNumber - Phone number
+   * @returns {Promise<object|null>} Customer data or null
+   */
+    async getCustomerData(phoneNumber) {
+      const customerDataKey = otpGenerator.generateCustomerDataKey(phoneNumber);
+      return await redisClient.get(customerDataKey);
+    }
+    
+
   /**
    * Checks if a customer exists
    * @param {string} identifier - Phone number or email

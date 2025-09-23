@@ -7,6 +7,7 @@ const shopifyService = require('./shopifyService');
 const smsService = require('./smsService');
 const redisClient = require('../config/database');
 const logger = require('../config/logger');
+const customerService = require('./customerService');
 const { 
   OTP_CONFIG, 
   ERROR_MESSAGES, 
@@ -17,6 +18,7 @@ const {
   VALIDATION,
   SECURITY
 } = require('../constants/otpConstants');
+
 
 class OTPService {
   /**
@@ -145,7 +147,7 @@ class OTPService {
       await this.removeOTPFromRedis(normalizedPhone);
       
       // Get customer data if exists
-      const customerData = await this.getCustomerData(normalizedPhone);
+      const customerData = await customerService.getCustomerData(normalizedPhone);
       
       // Prepare response data
       const responseData = this.prepareVerificationResponse(normalizedPhone, customerData);
@@ -340,16 +342,6 @@ class OTPService {
       logger.error(result);
       throw new Error(`SMS sending failed: ${result.message}`);
     }
-  }
-
-  /**
-   * Gets customer data from Redis
-   * @param {string} phoneNumber - Phone number
-   * @returns {Promise<object|null>} Customer data or null
-   */
-  async getCustomerData(phoneNumber) {
-    const customerDataKey = otpGenerator.generateCustomerDataKey(phoneNumber);
-    return await redisClient.get(customerDataKey);
   }
 
   /**

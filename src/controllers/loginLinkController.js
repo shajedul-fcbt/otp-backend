@@ -47,8 +47,6 @@ class LoginLinkController {
       // Generate login link
       const linkResult = await loginLinkService.generateLoginLink(normalizedEmail);
 
-      console.log(linkResult);
-
       if (!linkResult.success) {
         if (linkResult.error === 'EMAIL_NOT_FOUND') {
           return res.status(HTTP_STATUS.UNAUTHORIZED).json({
@@ -65,13 +63,18 @@ class LoginLinkController {
         });
       }
 
+      logger.info('Login link generated successfully', {
+        email: normalizedEmail,
+        loginUrl: linkResult.data.loginUrl
+      });
+      console.log(linkResult.data);
+
       // Send email with login link
       const emailResult = await emailService.sendLoginLinkEmail(
         normalizedEmail,
         linkResult.data.loginUrl,
         linkResult.data.customer
       );
-      console.log(emailResult);
 
       if (!emailResult.success) {
         logger.error('Failed to send login link email', {

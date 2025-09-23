@@ -9,6 +9,7 @@ const config = require('../config/environment');
 const logger = require('../config/logger');
 const shopifyService = require('./shopifyService');
 const { v4: uuidv4 } = require('uuid');
+const customerService = require('./customerService');
 
 class LoginLinkService {
   constructor() {
@@ -267,18 +268,28 @@ class LoginLinkService {
         JSON.stringify(linkData),
         this.linkExpiryMinutes * 60,
       );
+      console.log(linkData);
+
+      const customerData  = await customerService.getCustomerData(linkData?.customer?.phone);
 
       logger.info('Login token verified successfully', {
         email: linkData.email,
         token: this.hashToken(token)
       });
 
+
+      
+
       return {
         isValid: true,
         message: 'Login successful',
         data: {
           email: linkData.email,
-          customer: linkData.customer
+          customer: {
+            ...linkData.customer,
+            password: customerData.plainPassword,
+            customerId: customerData.customerId
+          },
         }
       };
     } catch (error) {

@@ -304,6 +304,14 @@ components:
           type: string
           format: date-time
           example: "2024-01-15T10:30:00.000Z"
+        password:
+          type: string
+          description: "Customer's temporary password for Shopify login (from cached data)"
+          example: "temp_password_123"
+        customerId:
+          type: string
+          description: "Internal customer ID from cached data"
+          example: "customer_uuid_456"
           
     ErrorResponse:
       type: object

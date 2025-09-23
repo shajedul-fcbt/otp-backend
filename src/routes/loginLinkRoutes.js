@@ -163,12 +163,34 @@ const deviceMiddleware = require('../middlewares/deviceMiddleware');
  *                         email:
  *                           type: string
  *                           example: "customer@example.com"
+ *                         phone:
+ *                           type: string
+ *                           example: "+8801712345678"
  *                         firstName:
  *                           type: string
  *                           example: "John"
  *                         lastName:
  *                           type: string
  *                           example: "Doe"
+ *                         acceptsMarketing:
+ *                           type: boolean
+ *                           example: true
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                           example: "2024-01-01T00:00:00.000Z"
+ *                         updatedAt:
+ *                           type: string
+ *                           format: date-time
+ *                           example: "2024-01-15T10:30:00.000Z"
+ *                         password:
+ *                           type: string
+ *                           description: "Customer's temporary password for Shopify login"
+ *                           example: "temp_password_123"
+ *                         customerId:
+ *                           type: string
+ *                           description: "Internal customer ID from cached data"
+ *                           example: "customer_uuid_456"
  *                     authenticatedAt:
  *                       type: string
  *                       format: date-time
