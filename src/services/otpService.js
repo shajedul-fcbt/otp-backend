@@ -55,7 +55,12 @@ class OTPService {
       logger.info(otpData);
       
       // Send SMS
-      // await this.sendOTPSMS(normalizedPhone, otpData);
+      try {
+        await this.sendOTPSMS(normalizedPhone, otpData);
+      } catch (err) {
+        logger.error(`Failed to send OTP SMS to ${normalizedPhone}:`, err);
+        // Let the program continue even if SMS sending fails
+      }
       
       // Prepare response data
       const responseData = this.prepareOTPResponse(normalizedPhone, customerCheck, otpData);

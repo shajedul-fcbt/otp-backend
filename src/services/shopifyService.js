@@ -84,6 +84,13 @@ class ShopifyService {
         timeout: 10000
       });
 
+      // Log complete Shopify response for debugging
+      logger.info('=== SHOPIFY API RESPONSE ===');
+      logger.info(`URL: ${searchUrl}`);
+      logger.info(`Status: ${response.status}`);
+      logger.info(`Response Data: ${JSON.stringify(response.data, null, 2)}`);
+      logger.info('=== END SHOPIFY RESPONSE ===');
+
       if (response.data && response.data.customers && response.data.customers.length > 0) {
         const customer = response.data.customers[0];
         return {
@@ -110,6 +117,7 @@ class ShopifyService {
 
     } catch (error) {
       logger.error('Admin API customer check failed:', error.message);
+      console.log( error);
       
       if (error.response?.status === 401) {
         return {
@@ -162,6 +170,13 @@ class ShopifyService {
         },
         timeout: 10000
       });
+
+      // Log complete Shopify email search response for debugging
+      logger.info('=== SHOPIFY EMAIL SEARCH RESPONSE ===');
+      logger.info(`URL: ${searchUrl}`);
+      logger.info(`Status: ${response.status}`);
+      logger.info(`Response Data: ${JSON.stringify(response.data, null, 2)}`);
+      logger.info('=== END SHOPIFY EMAIL RESPONSE ===');
 
       if (response.data && response.data.customers && response.data.customers.length > 0) {
         const customer = response.data.customers[0];
