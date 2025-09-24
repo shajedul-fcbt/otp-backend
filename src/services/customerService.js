@@ -118,6 +118,35 @@ class CustomerService {
     }
   }
 
+   /**
+   * Checks if a customer exists
+   * @param {string} identifier - Phone number or email
+   * @returns {object} Customer existence check result
+   */
+   async checkCustomerExistsByEmail(identifier) {
+    try {
+      Logger.logCheckingCustomerExists(identifier);
+      
+      const result = await shopifyService.checkCustomerByEmail(identifier);
+      
+      if (result.exists && result.customer) {
+        return {
+          exists: true,
+          customer: this.formatCustomerData(result.customer, identifier)
+        };
+      }
+
+      return {
+        exists: false,
+        customer: null
+      };
+
+    } catch (error) {
+      Logger.logError('checkCustomerExists', error);
+      throw error;
+    }
+  }
+
   /**
    * Generates a random password for new customers
    * @returns {object} Password data

@@ -27,7 +27,7 @@ A comprehensive OTP (One-Time Password) authentication backend built with Expres
 
 ### Customer Management
 - `POST /api/customer/signup` - Create new customer account
-- `GET /api/customer/check-exists` - Check if customer exists by phone number
+- `GET /api/customer/check-exists` - Check if customer exists by phone number and/or email
 
 ### Login Link Authentication
 - `POST /api/auth/login-link/request` - Request secure login link via email

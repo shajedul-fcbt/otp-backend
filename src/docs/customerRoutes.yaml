@@ -69,10 +69,20 @@ paths:
 
   /api/customer/check-exists:
     get:
-      summary: Check if a customer exists by phone number
+      summary: Check if a customer exists by phone number and/or email
       description: |
-        Checks if a customer exists in Shopify by phone number.
-        Returns customer information if found, otherwise indicates customer not found.
+        Checks if a customer exists in Shopify by phone number and optionally by email.
+        
+        **Verification Logic:**
+        - If only phone number is provided: Returns error if phone account exists
+        - If both phone and email are provided: Returns error if ANY account exists (phone OR email)
+        - Returns success only when NO existing accounts are found
+        
+        **Use Cases:**
+        - Pre-registration validation to prevent duplicate accounts
+        - User account verification before signup process
+        - Multi-identifier account conflict detection
+        
       tags: [Customer]
       parameters:
         - name: phoneNumber
@@ -83,9 +93,17 @@ paths:
             pattern: '^\\+880[1-9][0-9]{8}$'
             example: "+8801712345678"
           description: Bangladeshi phone number in international format
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+            format: email
+            example: "john.doe@example.com"
+          description: Email address to check for existing account (optional)
       responses:
         200:
-          description: Customer check completed
+          description: Customer check completed - Found existing account
           content:
             application/json:
               schema:
@@ -103,32 +121,44 @@ paths:
                       exists:
                         type: boolean
                         example: true
-                      customer:
-                        type: object
-                        properties:
-                          id:
-                            type: string
-                            example: "gid://shopify/Customer/123456789"
-                          email:
-                            type: string
-                            example: "john.doe@example.com"
-                          phone:
-                            type: string
-                            example: "+8801712345678"
-                          firstName:
-                            type: string
-                            example: "John"
-                          lastName:
-                            type: string
-                            example: "Doe"
+              examples:
+                phoneAccountExists:
+                  summary: Phone account exists
+                  description: Customer found by phone number
+                  value:
+                    success: true
+                    message: "Customer found"
+                    data:
+                      exists: true
+                emailAccountExists:
+                  summary: Email account exists  
+                  description: Customer found by email address
+                  value:
+                    success: true
+                    message: "Customer found"
+                    data:
+                      exists: true
         400:
-          description: Invalid phone number format
+          description: Validation error - Invalid phone number or email format
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidPhoneNumber:
+                  summary: Invalid phone number format
+                  value:
+                    success: false
+                    message: "Invalid Bangladeshi phone number format. Must be +8801XXXXXXXXX or 01XXXXXXXXX"
+                    error: "VALIDATION_ERROR"
+                invalidEmail:
+                  summary: Invalid email format (when email provided)
+                  value:
+                    success: false
+                    message: "Invalid email format"
+                    error: "VALIDATION_ERROR"
         404:
-          description: Customer not found
+          description: No existing accounts found - Verification passed
           content:
             application/json:
               schema:
@@ -149,5 +179,24 @@ paths:
                       phoneNumber:
                         type: string
                         example: "+8801712345678"
+              examples:
+                phoneOnlyNoAccount:
+                  summary: Phone only - No account found
+                  description: Only phone number provided, no existing account
+                  value:
+                    success: true
+                    message: "Customer not found"
+                    data:
+                      exists: false
+                      phoneNumber: "+8801712345678"
+                phoneEmailNoAccounts:
+                  summary: Phone + Email - No accounts found
+                  description: Both phone and email provided, no existing accounts
+                  value:
+                    success: true
+                    message: "Customer not found"
+                    data:
+                      exists: false
+                      phoneNumber: "+8801712345678"
         503:
           description: Service unavailable - Shopify connection error

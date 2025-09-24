@@ -3,6 +3,7 @@ const ErrorHandler = require('../utils/errorHandler');
 const ResponseHelper = require('../utils/responseHelper');
 const { validate, customerSignupSchema } = require('../middlewares/validation');
 const logger = require('../config/logger');
+const loginLinkService = require('../services/loginLinkService');
 
 class CustomerController {
   /**
@@ -86,42 +87,98 @@ class CustomerController {
    */
   async checkCustomerExists(req, res) {
     try {
-      const { phoneNumber, email } = req.query;
-      logger.info('Customer existence check request', { phoneNumber });
+        const { phoneNumber, email } = req.query;
+        logger.info('Customer existence check request', { phoneNumber });
 
-      // Validate phone number
-      const phoneValidation = customerService.validatePhoneNumber(phoneNumber);
-      if (!phoneValidation.isValid) {
-        logger.warn('WARNING: Invalid phone number provided', { 
-          phoneNumber,
-          validationError: phoneValidation.message 
+        // Validate phone number
+        const phoneValidation = customerService.validatePhoneNumber(phoneNumber);
+        if (!phoneValidation.isValid) {
+          logger.warn('WARNING: Invalid phone number provided', { 
+            phoneNumber,
+            validationError: phoneValidation.message 
+          });
+          return ErrorHandler.sendErrorResponse(res, 
+            ErrorHandler.handleValidationError(phoneValidation.message, 'phoneNumber')
+          );
+        }
+
+        // validate email if the email is provided
+        if (email) {
+          const emailValidation = loginLinkService.validateEmailFormat(email);
+          if (!emailValidation.isValid) {
+            logger.warn('WARNING: Invalid email provided', { 
+              email,
+              validationError: emailValidation.message 
+            });
+            
+            return ErrorHandler.sendErrorResponse(res, 
+              ErrorHandler.handleValidationError(emailValidation.message, 'email')
+            );
+          }
+        }
+
+
+        
+
+
+        // Check if customer exists using service layer
+        logger.debug('Checking customer existence in Shopify', { 
+          normalizedPhone: phoneValidation.normalizedNumber 
         });
-        return ErrorHandler.sendErrorResponse(res, 
-          ErrorHandler.handleValidationError(phoneValidation.message, 'phoneNumber')
-        );
-      }
+        const result = await customerService.checkCustomerExists(phoneValidation.normalizedNumber);
 
-      // Check if customer exists using service layer
-      logger.debug('Checking customer existence in Shopify', { 
-        normalizedPhone: phoneValidation.normalizedNumber 
-      });
-      const result = await customerService.checkCustomerExists(phoneValidation.normalizedNumber);
-      
+        let emailResult = {
+          exists: false,
+          customer: null
+        };
+        
+        
+        // Check if customer exists with email in service layer if the email is provided
+        if (email) {
+          emailResult = await customerService.checkCustomerExistsByEmail(email);
+          if (emailResult.exists) {
+            logger.info('Customer found', { 
+              email: email,
+              customerId: emailResult.customer?.id 
+              });
+          }
+        }
+
+        
+
+
       if (result.exists) {
-        logger.info('Customer found', { 
+        logger.info('Customer found by phone number', { 
           phoneNumber: phoneValidation.normalizedNumber,
           customerId: result.customer?.id 
         });
         return ResponseHelper.customerFound(res, {
-          exists: true,
-          customer: result.customer
+          exists: true
         });
-      } else {
+
+      } 
+      else if (email && emailResult.exists) {
+        
+        logger.info('Customer found by email', { 
+          email: email,
+          customerId: emailResult.customer?.id 
+        });
+        return ResponseHelper.customerFound(res, {
+          exists: true
+        });
+
+
+      }
+      else if (!result.exists && !emailResult.exists) {
         logger.info('Customer not found', { 
           phoneNumber: phoneValidation.normalizedNumber 
         });
         return ResponseHelper.customerNotFound(res, phoneValidation.normalizedNumber);
       }
+          
+          
+      
+    
 
     } catch (error) {
       logger.error('ERROR: Error in checkCustomerExists controller', { 

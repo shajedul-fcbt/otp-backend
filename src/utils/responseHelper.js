@@ -72,7 +72,7 @@ class ResponseHelper {
    * @param {object} customerData - Customer data
    * @returns {object} Express response
    */
-  static customerFound(res, customerData) {
+  static customerFound(res, customerData=null) {
     return this.success(
       res,
       SUCCESS_MESSAGES.CUSTOMER_FOUND,
