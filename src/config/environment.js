@@ -181,11 +181,22 @@ class EnvironmentConfig {
   get email() {
     return {
       enabled: process.env.EMAIL_ENABLED === 'true' || true,
-      mockSending: process.env.MOCK_EMAIL_SENDING === 'true' || true,
-      provider: process.env.EMAIL_PROVIDER || 'mock',
-      fromEmail: process.env.EMAIL_FROM || 'noreply@example.com',
-      fromName: process.env.EMAIL_FROM_NAME || 'OTP Authentication Service',
+      mockSending: process.env.MOCK_EMAIL_SENDING === 'true' || false,
+      provider: process.env.EMAIL_PROVIDER || 'outlook',
+      fromEmail: process.env.DEFAULT_FROM_EMAIL || 'noreply@sundora.com.bd',
+      fromName: process.env.EMAIL_FROM_NAME || 'Sundora',
+      toEmail: process.env.EMAIL_TO || 'support@sundora.com.bd',
       timeout: parseInt(process.env.EMAIL_TIMEOUT_MS) || 30000,
+      
+      // Outlook/Office365 SMTP configuration
+      outlook: {
+        host: process.env.EMAIL_HOST || 'smtp.office365.com',
+        port: parseInt(process.env.EMAIL_PORT) || 587,
+        secure: process.env.EMAIL_USE_SSL === 'true' || false,
+        tls: process.env.EMAIL_USE_TLS === 'true' || true,
+        user: process.env.EMAIL_HOST_USER,
+        password: process.env.EMAIL_HOST_PASSWORD
+      },
       
       // SendGrid configuration (example)
       sendgrid: {

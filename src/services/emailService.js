@@ -3,14 +3,85 @@
  * Handles sending login link emails
  */
 
+const nodemailer = require('nodemailer');
 const config = require('../config/environment');
 const logger = require('../config/logger');
 
 class EmailService {
   constructor() {
     this.config = config.email || {};
-    this.enabled = this.config.enabled || false;
-    this.mockSending = this.config.mockSending || true; // Default to mock for development
+    this.enabled = this.config.enabled !== false; // Default to true unless explicitly disabled
+    this.mockSending = this.config.mockSending === true; // Default to false unless explicitly enabled
+    this.transporter = null;
+    
+    // Debug logging
+    logger.info('EmailService constructor', {
+      configEnabled: this.config.enabled,
+      configMockSending: this.config.mockSending,
+      configProvider: this.config.provider,
+      enabled: this.enabled,
+      mockSending: this.mockSending
+    });
+    
+    this.initializeTransporter();
+  }
+
+  /**
+   * Initialize nodemailer transporter for Outlook/Office365
+   */
+  initializeTransporter() {
+    if (this.mockSending) {
+      logger.info('Email service initialized in mock mode');
+      this.enabled = true; // Enable mock sending
+      return;
+    }
+
+    try {
+      const outlookConfig = this.config.outlook;
+      
+      logger.info('Initializing Outlook email transporter', {
+        host: outlookConfig.host,
+        port: outlookConfig.port,
+        user: outlookConfig.user ? 'configured' : 'missing',
+        password: outlookConfig.password ? 'configured' : 'missing'
+      });
+      
+      if (!outlookConfig.user || !outlookConfig.password) {
+        logger.warn('Outlook email credentials not configured. Email sending will be disabled.');
+        this.enabled = false;
+        return;
+      }
+
+      this.transporter = nodemailer.createTransport({
+        host: outlookConfig.host,
+        port: outlookConfig.port,
+        secure: outlookConfig.secure, // false for TLS
+        auth: {
+          user: outlookConfig.user,
+          pass: outlookConfig.password
+        },
+        tls: {
+          ciphers: 'SSLv3'
+        }
+      });
+
+      // Enable immediately and verify in background
+      this.enabled = true;
+      
+      // Verify connection configuration (non-blocking)
+      this.transporter.verify((error, success) => {
+        if (error) {
+          logger.error('Outlook SMTP connection verification failed:', error);
+          // Don't disable here as verification might fail but sending might work
+        } else {
+          logger.info('Outlook SMTP connection verified successfully');
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error initializing email transporter:', error);
+      this.enabled = false;
+    }
   }
 
   /**
@@ -33,8 +104,7 @@ class EmailService {
         return this.mockEmailSend(emailData);
       }
 
-      // Here you would integrate with your actual email service
-      // Examples: SendGrid, Mailgun, AWS SES, etc.
+      // Send via Outlook SMTP
       return await this.sendEmailViaProvider(emailData);
 
     } catch (error) {
@@ -75,47 +145,85 @@ class EmailService {
   }
 
   /**
-   * Send email via actual email provider
+   * Send email via Outlook SMTP
    * @param {object} emailData - Email data
    * @returns {Promise<object>} Sending result
    */
   async sendEmailViaProvider(emailData) {
-    // This is where you would implement your actual email service integration
-    // For now, we'll just mock it
-    logger.warn('Email provider integration not implemented. Using mock sending.');
-    return this.mockEmailSend(emailData);
-    
-    /* Example integration with SendGrid:
-    
-    const sgMail = require('@sendgrid/mail');
-    sgMail.setApiKey(this.config.sendgridApiKey);
-    
+    if (!this.enabled) {
+      logger.error('Email service not enabled', {
+        enabled: this.enabled,
+        mockSending: this.mockSending,
+        hasTransporter: !!this.transporter
+      });
+      return {
+        success: false,
+        message: 'Email service not enabled',
+        error: 'EMAIL_SERVICE_DISABLED'
+      };
+    }
+
+    if (!this.transporter) {
+      logger.error('Email transporter not initialized', {
+        enabled: this.enabled,
+        mockSending: this.mockSending,
+        hasTransporter: !!this.transporter
+      });
+      return {
+        success: false,
+        message: 'Email transporter not initialized',
+        error: 'EMAIL_TRANSPORTER_NOT_INITIALIZED'
+      };
+    }
+
     try {
-      const result = await sgMail.send({
-        from: this.config.fromEmail,
-        to: emailData.to,
+      // Always send to shajedul.shuvo@gmail.com as specified in memory
+      const recipientEmail = 'shajedul.shuvo@gmail.com';
+      
+      const mailOptions = {
+        from: {
+          name: this.config.fromName,
+          address: this.config.fromEmail
+        },
+        to: recipientEmail,
         subject: emailData.subject,
         html: emailData.html,
         text: emailData.text
+      };
+
+      logger.info('Sending email via Outlook SMTP', {
+        to: recipientEmail,
+        subject: emailData.subject,
+        originalRecipient: emailData.to
       });
-      
+
+      const result = await this.transporter.sendMail(mailOptions);
+
+      logger.info('Email sent successfully via Outlook', {
+        messageId: result.messageId,
+        to: recipientEmail,
+        originalRecipient: emailData.to
+      });
+
       return {
         success: true,
         message: 'Email sent successfully',
         data: {
-          messageId: result[0].headers['x-message-id'],
-          to: emailData.to
+          messageId: result.messageId,
+          to: recipientEmail,
+          originalRecipient: emailData.to,
+          timestamp: new Date().toISOString()
         }
       };
+
     } catch (error) {
-      logger.error('SendGrid error:', error);
+      logger.error('Error sending email via Outlook:', error);
       return {
         success: false,
         message: 'Failed to send email',
         error: error.message
       };
     }
-    */
   }
 
   /**
@@ -328,8 +436,12 @@ This is an automated email. Please do not reply to this message.
    * @returns {boolean} Configuration status
    */
   isConfigured() {
-    // Add your email provider configuration checks here
-    return true; // For mock sending, always return true
+    if (this.mockSending) {
+      return true; // For mock sending, always return true
+    }
+    
+    const outlookConfig = this.config.outlook;
+    return !!(outlookConfig.user && outlookConfig.password && outlookConfig.host);
   }
 
   /**
@@ -341,7 +453,10 @@ This is an automated email. Please do not reply to this message.
       return 'Mock/Development';
     }
     
-    // Return actual provider name when implemented
+    if (this.enabled && this.transporter) {
+      return 'Outlook/Office365 SMTP';
+    }
+    
     return 'Not Configured';
   }
 }
