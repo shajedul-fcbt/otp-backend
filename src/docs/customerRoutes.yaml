@@ -1,0 +1,211 @@
+paths:
+  /api/customer/signup:
+    post:
+      summary: Create a new customer account
+      description: |
+        Creates a new customer account in Shopify with the provided information.
+        Generates a temporary password and stores customer data in Redis.
+        Validates phone number format and checks for existing customers.
+      tags: [Customer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSignupRequest'
+            examples:
+              example1:
+                summary: Complete customer data
+                value:
+                  phoneNumber: "+8801712345678"
+                  name: "John Doe"
+                  email: "john.doe@example.com"
+                  gender: "male"
+                  birthdate: "1990-01-15"
+                  acceptsMarketing: true
+              example2:
+                summary: Minimal required data
+                value:
+                  phoneNumber: "+8801712345678"
+                  name: "Jane Smith"
+                  email: "jane.smith@example.com"
+      responses:
+        201:
+          description: Customer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSignupResponse'
+        400:
+          description: Validation error or customer already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        409:
+          description: Customer already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Customer already exists with this phone number"
+                  data:
+                    type: object
+                    properties:
+                      phoneNumber:
+                        type: string
+                        example: "+8801712345678"
+                      customerExists:
+                        type: boolean
+                        example: true
+        503:
+          description: Service unavailable - Shopify or Redis connection error
+
+  /api/customer/check-exists:
+    get:
+      summary: Check if a customer exists by phone number and/or email
+      description: |
+        Checks if a customer exists in Shopify by phone number and optionally by email.
+        
+        **Verification Logic:**
+        - If only phone number is provided: Returns error if phone account exists
+        - If both phone and email are provided: Returns error if ANY account exists (phone OR email)
+        - Returns success only when NO existing accounts are found
+        
+        **Use Cases:**
+        - Pre-registration validation to prevent duplicate accounts
+        - User account verification before signup process
+        - Multi-identifier account conflict detection
+        
+      tags: [Customer]
+      parameters:
+        - name: phoneNumber
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\\+880[1-9][0-9]{8}$'
+            example: "+8801712345678"
+          description: Bangladeshi phone number in international format
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+            format: email
+            example: "john.doe@example.com"
+          description: Email address to check for existing account (optional)
+      responses:
+        200:
+          description: Customer check completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Customer found"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-09-24T09:37:22.353Z"
+                  data:
+                    type: object
+                    properties:
+                      exists:
+                        type: boolean
+                        example: true
+              examples:
+                phoneAccountExists:
+                  summary: Phone account exists
+                  description: Customer found by phone number
+                  value:
+                    success: true
+                    message: "Customer found"
+                    timestamp: "2025-09-24T09:37:22.353Z"
+                    data:
+                      exists: true
+                emailAccountExists:
+                  summary: Email account exists  
+                  description: Customer found by email address
+                  value:
+                    success: true
+                    message: "Customer found"
+                    timestamp: "2025-09-24T09:37:22.353Z"
+                    data:
+                      exists: true
+                noAccountFound:
+                  summary: No accounts found - Verification passed
+                  description: No existing accounts found for provided identifiers
+                  value:
+                    success: true
+                    message: "Customer not found"
+                    timestamp: "2025-09-24T09:38:06.026Z"
+                    data:
+                      exists: false
+                      phoneNumber: "+8801999999999"
+        400:
+          description: Validation error - Invalid phone number or email format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Phone number contains no valid digits"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-09-24T09:37:59.233Z"
+                  errorCode:
+                    type: string
+                    example: "VALIDATION_ERROR"
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+                        value:
+                          type: string
+                          nullable: true
+              examples:
+                invalidPhoneNumber:
+                  summary: Invalid phone number format
+                  value:
+                    success: false
+                    message: "Phone number contains no valid digits"
+                    errors:
+                      - field: "phoneNumber"
+                        message: "Phone number contains no valid digits"
+                        value: "invalidphone"
+                invalidEmail:
+                  summary: Invalid email format (when email provided)
+                  value:
+                    success: false
+                    message: "Please provide a valid email address"
+                    timestamp: "2025-09-24T09:37:59.233Z"
+                    errorCode: "VALIDATION_ERROR"
+                    errors:
+                      - field: "email"
+                        message: "Please provide a valid email address"
+                        value: null
+        503:
+          description: Service unavailable - Shopify connection error

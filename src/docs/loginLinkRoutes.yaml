@@ -1,0 +1,329 @@
+paths:
+  /api/auth/login-link/request:
+    post:
+      summary: Request a login link via email
+      description: |
+        Validates the email address against Shopify customer database and our local database.
+        If the email exists in both sources, sends a secure login link to the email.
+        Returns 401 Unauthorized if email doesn't exist - user needs to sign up first.
+        
+        **Security Features:**
+        - Email must exist in Shopify to proceed
+        - Login links expire in 15 minutes
+        - Links can only be used once
+        - HMAC-based token integrity verification
+        - Rate limiting to prevent abuse
+        
+      tags: [Login Link Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginLinkRequest'
+            examples:
+              validEmail:
+                summary: Valid email request
+                value:
+                  email: "customer@example.com"
+              invalidEmail:
+                summary: Invalid email format
+                value:
+                  email: "invalid-email"
+      responses:
+        200:
+          description: Login link sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Login link sent to your email address"
+                  data:
+                    type: object
+                    properties:
+                      email:
+                        type: string
+                        example: "customer@example.com"
+                      expiresIn:
+                        type: number
+                        description: "Link expiry time in minutes"
+                        example: 15
+                      sentAt:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T10:30:00.000Z"
+        400:
+          description: Bad request - invalid email format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidEmail:
+                  summary: Invalid email format
+                  value:
+                    success: false
+                    message: "Please provide a valid email address"
+                    error: "INVALID_EMAIL_FORMAT"
+                missingEmail:
+                  summary: Missing email
+                  value:
+                    success: false
+                    message: "Email is required"
+                    error: "MISSING_EMAIL"
+        401:
+          description: Unauthorized - email not found, user needs to sign up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "Invalid Email. Please sign up."
+                error: "UNAUTHORIZED"
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "Internal server error"
+                error: "INTERNAL_ERROR"
+
+  /api/auth/login-link/verify:
+    get:
+      summary: Verify login link token and authenticate user
+      description: |
+        Verifies the login token received via email and authenticates the user.
+        
+        **Security Features:**
+        - Token integrity verification using HMAC
+        - Single-use tokens (marked as used after verification)
+        - Automatic expiry after 15 minutes
+        - Redis storage with TTL
+        
+        **Usage:**
+        This endpoint is typically called when user clicks the login link in their email.
+        On successful verification, returns customer data for frontend authentication.
+        
+      tags: [Login Link Authentication]
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
+          description: |
+            Base64-encoded login token from the email link.
+            Format: base64url(email:timestamp:randomBytes:hmacSignature)
+          example: "Y3VzdG9tZXJAZXhhbXBsZS5jb206MTY0Mjc1MjAwMDAwMDo4ZjI1YjM0ZTcyOWE5MTJjOmFiY2RlZg"
+      responses:
+        200:
+          description: Login successful - user authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Login successful"
+                  data:
+                    type: object
+                    properties:
+                      email:
+                        type: string
+                        example: "customer@example.com"
+                      customer:
+                        $ref: '#/components/schemas/ShopifyCustomer'
+                      authenticatedAt:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T10:45:00.000Z"
+        400:
+          description: Bad request - missing or malformed token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "Login token is required"
+                error: "MISSING_TOKEN"
+        401:
+          description: Unauthorized - invalid, expired, or corrupted token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                tokenNotFound:
+                  summary: Token not found or expired
+                  value:
+                    success: false
+                    message: "Login link has expired or is invalid"
+                    error: "TOKEN_NOT_FOUND"
+                tokenExpired:
+                  summary: Token expired
+                  value:
+                    success: false
+                    message: "Login link has expired"
+                    error: "TOKEN_EXPIRED"
+                invalidToken:
+                  summary: Invalid token format
+                  value:
+                    success: false
+                    message: "Invalid token format"
+                    error: "INVALID_TOKEN"
+                integrityFailed:
+                  summary: Token integrity check failed
+                  value:
+                    success: false
+                    message: "Invalid login token"
+                    error: "TOKEN_INTEGRITY_FAILED"
+        403:
+          description: Forbidden - token already used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "Login link has already been used"
+                error: "TOKEN_ALREADY_USED"
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "Internal server error"
+                error: "VERIFICATION_ERROR"
+
+  /api/auth/login-link/status:
+    get:
+      summary: Get login link service status
+      description: |
+        Returns the current status and configuration of the login link service.
+        Useful for monitoring and debugging email service integration.
+      tags: [Login Link Authentication]
+      responses:
+        200:
+          description: Service status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Login link service status"
+                  data:
+                    type: object
+                    properties:
+                      emailService:
+                        type: object
+                        properties:
+                          enabled:
+                            type: boolean
+                            example: true
+                          mockSending:
+                            type: boolean
+                            example: true
+                            description: "Whether emails are being mocked (development mode)"
+                          configured:
+                            type: boolean
+                            example: true
+                            description: "Whether email service is properly configured"
+                          provider:
+                            type: string
+                            example: "Mock/Development"
+                            description: "Email service provider name"
+                      timestamp:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T10:30:00.000Z"
+
+components:
+  schemas:
+    LoginLinkRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: "Customer's email address"
+          example: "customer@example.com"
+          
+    ShopifyCustomer:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Shopify customer ID in GraphQL format"
+          example: "gid://shopify/Customer/123456789"
+        email:
+          type: string
+          format: email
+          example: "customer@example.com"
+        phone:
+          type: string
+          example: "+8801712345678"
+        firstName:
+          type: string
+          example: "John"
+        lastName:
+          type: string
+          example: "Doe"
+        acceptsMarketing:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00.000Z"
+        password:
+          type: string
+          description: "Customer's temporary password for Shopify login (from cached data)"
+          example: "temp_password_123"
+        customerId:
+          type: string
+          description: "Internal customer ID from cached data"
+          example: "customer_uuid_456"
+          
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: "Human-readable error message"
+          example: "An error occurred"
+        error:
+          type: string
+          description: "Error code for programmatic handling"
+          example: "ERROR_CODE"

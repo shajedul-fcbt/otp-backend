@@ -1,5 +1,6 @@
 const Joi = require('joi');
 const phoneValidator = require('../utils/phoneValidator');
+const logger = require('../config/logger');
 
 /**
  * Validation schemas using Joi
@@ -81,6 +82,10 @@ const customerSignupSchema = Joi.object({
   gender: genderSchema,
   birthdate: birthdateSchema,
   acceptsMarketing: acceptsMarketingSchema
+});
+
+const loginLinkRequestSchema = Joi.object({
+  email: emailSchema
 });
 
 /**
@@ -222,7 +227,7 @@ const sanitizeInput = (req, res, next) => {
   };
 
   const sanitizeObject = (obj) => {
-    console.log('obj', obj);
+    logger.debug('obj', obj);
     if (obj && typeof obj === 'object') {
       for (let key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -267,6 +272,7 @@ module.exports = {
   sendOTPSchema,
   verifyOTPSchema,
   customerSignupSchema,
+  loginLinkRequestSchema,
   
   // Validation middleware
   validate,

@@ -1,22 +1,24 @@
 const axios = require('axios');
-require('dotenv').config();
+const config = require('../config/environment');
+const logger = require('../config/logger');
 
 class ShopifyService {
   constructor() {
-    this.storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
-    this.storefrontAccessToken = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN;
-    this.adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    this.config = config.shopify;
+    this.storeDomain = this.config.storeDomain;
+    this.storefrontAccessToken = this.config.storefrontAccessToken;
+    this.adminAccessToken = this.config.adminAccessToken;
     
     // API URLs
-    this.storefrontApiUrl = `https://${this.storeDomain}/api/2024-10/graphql.json`;
-    this.adminApiUrl = `https://${this.storeDomain}/admin/api/2024-10/graphql.json`;
-    this.adminRestApiUrl = `https://${this.storeDomain}/admin/api/2024-10`;
+    this.storefrontApiUrl = this.config.urls.storefront;
+    this.adminApiUrl = this.config.urls.adminGraphQL;
+    this.adminRestApiUrl = this.config.urls.adminREST;
 
     if (!this.storeDomain) {
-      console.warn('⚠️ SHOPIFY_STORE_DOMAIN is missing in environment variables.');
+      logger.warn('WARNING: SHOPIFY_STORE_DOMAIN is missing in environment variables.');
     }
     if (!this.storefrontAccessToken && !this.adminAccessToken) {
-      console.warn('⚠️ Either SHOPIFY_STOREFRONT_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN is required.');
+      logger.warn('WARNING: Either SHOPIFY_STOREFRONT_ACCESS_TOKEN or SHOPIFY_ADMIN_ACCESS_TOKEN is required.');
     }
   }
 
@@ -41,8 +43,8 @@ class ShopifyService {
       }
 
       // Fallback: Assume customer doesn't exist
-      console.warn('⚠️ Admin API access token not configured');
-      console.warn('⚠️ Cannot verify customer existence - assuming new customer');
+      logger.warn('WARNING: Admin API access token not configured');
+      logger.warn('WARNING: Cannot verify customer existence - assuming new customer');
       
       return {
         exists: false,
@@ -51,7 +53,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Error checking customer existence:', error.message);
+      logger.error('Error checking customer existence:', error.message);
       
       return {
         exists: false,
@@ -72,7 +74,7 @@ class ShopifyService {
       // GraphQL Admin API also works but REST is simpler for this use case
       const searchUrl = `${this.adminRestApiUrl}/customers.json?phone=${encodeURIComponent(phoneNumber)}&limit=1`;
 
-      console.log('searchUrl', searchUrl);
+      logger.debug('searchUrl', searchUrl);
       
       const response = await axios.get(searchUrl, {
         headers: {
@@ -81,6 +83,13 @@ class ShopifyService {
         },
         timeout: 10000
       });
+
+      // Log complete Shopify response for debugging
+      logger.info('=== SHOPIFY API RESPONSE ===');
+      logger.info(`URL: ${searchUrl}`);
+      logger.info(`Status: ${response.status}`);
+      logger.info(`Response Data: ${JSON.stringify(response.data, null, 2)}`);
+      logger.info('=== END SHOPIFY RESPONSE ===');
 
       if (response.data && response.data.customers && response.data.customers.length > 0) {
         const customer = response.data.customers[0];
@@ -107,7 +116,94 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Admin API customer check failed:', error.message);
+      logger.error('Admin API customer check failed:', error.message);
+      console.log( error);
+      
+      if (error.response?.status === 401) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Invalid Admin API access token'
+        };
+      }
+      
+      if (error.response?.status === 402) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Shopify store payment required'
+        };
+      }
+      
+      return {
+        exists: false,
+        customer: null,
+        error: 'Admin API request failed'
+      };
+    }
+  }
+
+  /**
+   * Check customer by email using Admin API
+   * @param {string} email - Customer's email address
+   * @returns {object} - Customer existence result
+   */
+  async checkCustomerByEmail(email) {
+    try {
+      if (!this.storeDomain || !this.adminAccessToken) {
+        return {
+          exists: false,
+          customer: null,
+          error: 'Shopify Admin API not configured'
+        };
+      }
+
+      // Use REST API to search customers by email
+      const searchUrl = `${this.adminRestApiUrl}/customers.json?email=${encodeURIComponent(email)}&limit=1`;
+
+      logger.debug('Email search URL:', searchUrl);
+      
+      const response = await axios.get(searchUrl, {
+        headers: {
+          'X-Shopify-Access-Token': this.adminAccessToken,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
+
+      // Log complete Shopify email search response for debugging
+      logger.info('=== SHOPIFY EMAIL SEARCH RESPONSE ===');
+      logger.info(`URL: ${searchUrl}`);
+      logger.info(`Status: ${response.status}`);
+      logger.info(`Response Data: ${JSON.stringify(response.data, null, 2)}`);
+      logger.info('=== END SHOPIFY EMAIL RESPONSE ===');
+
+      if (response.data && response.data.customers && response.data.customers.length > 0) {
+        const customer = response.data.customers[0];
+        return {
+          exists: true,
+          customer: {
+            id: `gid://shopify/Customer/${customer.id}`,
+            email: customer.email,
+            phone: customer.phone,
+            firstName: customer.first_name,
+            lastName: customer.last_name,
+            acceptsMarketing: customer.accepts_marketing,
+            createdAt: customer.created_at,
+            updatedAt: customer.updated_at
+          },
+          error: null
+        };
+      }
+
+      return {
+        exists: false,
+        customer: null,
+        error: null
+      };
+
+    } catch (error) {
+      logger.error('Admin API customer email check failed:', error.message);
       
       if (error.response?.status === 401) {
         return {
@@ -165,7 +261,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Error creating customer:', error.message);
+      logger.error('Error creating customer:', error.message);
       
       return {
         success: false,
@@ -263,7 +359,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Admin API customer creation failed:', error.message);
+      logger.error('Admin API customer creation failed:', error.message);
       
       if (error.response?.status === 401) {
         return {
@@ -302,7 +398,7 @@ class ShopifyService {
   async createCustomerWithStorefrontAPI(customerData) {
     // Storefront API customer creation is very limited
     // It doesn't support phone numbers or custom fields
-    console.warn('⚠️ Using Storefront API for customer creation - limited functionality');
+    logger.warn('WARNING: Using Storefront API for customer creation - limited functionality');
     
     return {
       success: false,
@@ -361,7 +457,7 @@ class ShopifyService {
       );
 
       if (response.data.errors) {
-        console.error('Shopify GraphQL errors:', response.data.errors);
+        logger.error('Shopify GraphQL errors:', response.data.errors);
         return {
           success: false,
           customer: null,
@@ -378,7 +474,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Error retrieving customer:', error.message);
+      logger.error('Error retrieving customer:', error.message);
       return {
         success: false,
         customer: null,
@@ -440,7 +536,7 @@ class ShopifyService {
       };
 
     } catch (error) {
-      console.error('Shopify connection test failed:', error.message);
+      logger.error('Shopify connection test failed:', error.message);
       return {
         success: false,
         message: 'Failed to connect to Shopify'
